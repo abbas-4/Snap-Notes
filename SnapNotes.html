@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Flashcards — Abbas</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    /* small extra styles for card flip */
+    .card-front, .card-back { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+    .card-back { transform: rotateY(180deg); }
+    .card-inner { transition: transform 0.45s; transform-style: preserve-3d; }
+    .flipped .card-inner { transform: rotateY(180deg); }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-b from-gray-50 to-white text-gray-800">
+  <div class="max-w-5xl mx-auto p-6">
+    <header class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-3xl font-bold">Snap <span class="text-indigo-600">Notes</span></h1>
+      </div>
+      <nav class="space-x-2">
+        <button id="nav-home" class="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">Home</button>
+        <button id="nav-list" class="px-4 py-2 rounded-lg bg-purple-600 text-white">List</button>
+        <button id="nav-add" class="px-4 py-2 rounded-lg bg-purple-600 text-white">Add</button>
+        <button id="nav-study" class="px-4 py-2 rounded-lg bg-purple-600 text-white">Study</button>
+        <button id="nav-quiz" class="px-4 py-2 rounded-lg bg-purple-600 text-white">Quiz</button>
+	<button id="nav-learn" class="px-4 py-2 rounded-lg bg-purple-600 text-white">Learn</button>
+	<button id="nav-match" class="px-4 py-2 rounded-lg bg-purple-600 text-white">Match</button>
+
+      </nav>
+    </header>
+
+    <main id="app-root" class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+      <!-- Views render here -->
+    </main>
+
+    
+  
+  <!-- Floating Add button -->
+  <button id="floating-add" onclick="navTo('add')" class="fixed right-6 bottom-6 px-4 py-3 rounded-full shadow-lg bg-white-500 text-purple text-sm">➕ Add</button>
+  </div>
+
+  <script>
+    // Simple SPA + LocalStorage flashcard app
+    const STORAGE_KEY = 'abbas_flashcards_v1';
+
+    function uid() { return Math.random().toString(36).slice(2,9); }
+
+    // Basic data helpers
+    function loadCards(){
+      try{ return JSON.parse(localStorage.getItem(STORAGE_KEY))||[] }catch(e){return []}
+    }
+    function saveCards(cards){ localStorage.setItem(STORAGE_KEY, JSON.stringify(cards)); }
+
+    // Initial render helpers
+    const root = document.getElementById('app-root');
+    function navTo(view){ window.location.hash = view; }
+
+    // Views
+    function renderHome(){
+      const cards = loadCards();
+      root.innerHTML = `
+        <div class="text-center py-8">
+          
+          
+
+          <div class="inline-flex gap-6 items-center justify-center mb-6">
+            <div class="text-center">
+              <p class="text-3xl font-bold">${cards.length}</p>
+              <p class="text-sm text-gray-500">Flashcards</p>
+            </div>
+            <div class="w-px h-12 bg-gray-200"></div>
+            <div class="text-center">
+              <p class="text-3xl font-bold">4</p>
+              <p class="text-sm text-gray-500">Study Modes</p>
+            </div>
+          </div>
+
+          <div class="flex gap-3 justify-center">
+            <button class="px-4 py-2 rounded-lg bg-purple-600 text-white" onclick="navTo('add')">Add Flashcard</button>
+          </div>
+        </div>
+
+        <hr class="my-6" />
+
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold">Recent cards</h3>
+            <div class="flex gap-2">
+              <button class="px-3 py-1 border rounded" onclick="exportJSON()">Export</button>
+              <input id="import-file" type="file" accept="application/json" class="hidden" onchange="importJSON(event)" />
+              <button class="px-3 py-1 border rounded" onclick="document.getElementById('import-file').click()">Import</button>
+            </div>
+          </div>
+          <div class="grid sm:grid-cols-2 gap-3">
+            ${cards.slice().reverse().slice(0,6).map(c=>`
+              <div class="p-4 border rounded-lg">
+                <div class="text-sm text-gray-500 mb-2">${c.id}</div>
+                <div class="font-medium mb-1 truncate">${escapeHTML(c.term)}</div>
+                <div class="text-sm text-gray-500 mb-2 truncate">${escapeHTML(c.definition)}</div>
+                <div class="flex gap-2">
+                  <button class="px-2 py-1 border rounded" onclick="editCard('${c.id}')">Edit</button>
+                  <button class="px-2 py-1 border rounded" onclick="deleteCardConfirm('${c.id}')">Delete</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderList(){
+      const cards = loadCards();
+      root.innerHTML = `
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-semibold">All Flashcards</h2>
+          <div class="flex gap-2">
+            <input id="search" placeholder="Search..." class="px-3 py-2 border rounded" />
+            <button onclick="navTo('add')" class="px-3 py-2 rounded bg-amber-500 text-white">New</button>
+          </div>
+        </div>
+        <div id="list-container" class="grid sm:grid-cols-2 gap-3">
+          ${cards.map(c=>`
+            <div class="p-4 border rounded-lg">
+              <div class="flex justify-between items-start gap-2">
+                <div>
+                  <div class="text-sm text-gray-500">${c.id}</div>
+                  <div class="font-medium">${escapeHTML(c.term)}</div>
+                  <div class="text-sm text-gray-500 truncate">${escapeHTML(c.definition)}</div>
+                </div>
+                <div class="flex flex-col gap-2 text-right">
+                  <button class="px-2 py-1 border rounded" onclick="studySingle('${c.id}')">Study</button>
+                  <button class="px-2 py-1 border rounded" onclick="editCard('${c.id}')">Edit</button>
+                  <button class="px-2 py-1 border rounded" onclick="deleteCardConfirm('${c.id}')">Delete</button>
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      document.getElementById('search').addEventListener('input', e=>{
+        const q = e.target.value.toLowerCase();
+        document.querySelectorAll('#list-container > div').forEach(cardEl=>{
+          const text = cardEl.innerText.toLowerCase();
+          cardEl.style.display = text.includes(q)?'block':'none';
+        })
+      })
+    }
+
+function renderAdd(editId){
+  const cards = loadCards();
+  const edit = cards.find(c=>c.id===editId);
+
+  root.innerHTML = `
+    <div class="max-w-2xl mx-auto">
+      <h2 class="text-3xl font-bold mb-6 text-center">
+        ${edit ? "Edit Flashcard" : "Add Flashcard"}
+      </h2>
+
+      <div class="bg-white p-8 rounded-2xl shadow-lg border border-gray-200">
+        <form id="card-form" class="space-y-6">
+
+          <!-- Term -->
+          <div>
+            <label class="text-sm font-semibold text-gray-700 block mb-1">Term</label>
+            <input
+              id="term"
+              required
+              class="w-full p-4 border rounded-xl focus:ring-2 focus:ring-purple-400 focus:border-purple-400 text-lg"
+              value="${edit ? escapeAttr(edit.term) : ""}"
+            />
+          </div>
+
+          <!-- Definition -->
+          <div>
+            <label class="text-sm font-semibold text-gray-700 block mb-1">Definition</label>
+            <textarea
+              id="definition"
+              required
+              class="w-full p-4 border rounded-xl h-40 focus:ring-2 focus:ring-purple-400 focus:border-purple-400 text-lg"
+            >${edit ? escapeAttr(edit.definition) : ""}</textarea>
+          </div>
+
+          <!-- Buttons -->
+          <div class="flex gap-3 justify-center pt-4">
+            <button type="submit"
+              class="px-6 py-3 rounded-xl bg-purple-600 text-white font-semibold shadow hover:bg-purple-700">
+              Save
+            </button>
+
+            <button type="button" onclick="navTo('list')"
+              class="px-6 py-3 rounded-xl border font-semibold hover:bg-gray-50">
+              Cancel
+            </button>
+
+            ${edit ? `
+              <button type="button"
+                onclick="duplicateCard('${edit.id}')"
+                class="px-6 py-3 rounded-xl border font-semibold hover:bg-gray-50">
+                Duplicate
+              </button>` : ""}
+          </div>
+
+        </form>
+      </div>
+    </div>
+  `;
+
+  // Save handler
+  document.getElementById('card-form').addEventListener('submit', e=>{
+    e.preventDefault();
+
+    const term = document.getElementById('term').value.trim();
+    const definition = document.getElementById('definition').value.trim();
+    if(!term || !definition) return alert('Please fill both fields');
+
+    let cards = loadCards();
+
+    if(edit){
+      cards = cards.map(c=> c.id===edit.id ? { ...c, term, definition, updated:Date.now() } : c);
+    } else {
+      cards.push({ id: uid(), term, definition, created:Date.now() });
+    }
+
+    saveCards(cards);
+
+    // Stay on Add page
+    document.getElementById('term').value = "";
+    document.getElementById('definition').value = "";
+    alert("Flashcard saved!");
+  });
+}
+
+    function renderStudy(singleId){
+      let cards = loadCards();
+      if(cards.length===0){ root.innerHTML = `<div class="text-center py-12">No cards yet — <button onclick="navTo('add')" class="underline text-amber-500">Add one</button></div>`; return; }
+      if(singleId){ cards = cards.filter(c=>c.id===singleId); }
+      let index = 0;
+      function show(){
+        const c = cards[index];
+        root.innerHTML = `
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-xl font-semibold">Study Mode</h2>
+            <div class="flex gap-2">
+              <button onclick="shuffleAll()" class="px-3 py-1 border rounded">Shuffle</button>
+              <button onclick="navTo('list')" class="px-3 py-1 border rounded">Back</button>
+            </div>
+          </div>
+          <div class="flex flex-col items-center gap-4">
+            <div id="card" class="w-full max-w-xl p-6 border rounded-lg shadow relative">
+              <div class="card-inner">
+                <div class="card-front">
+                  <div class="text-sm text-gray-500 mb-2">Card ${index+1} of ${cards.length}</div>
+                  <div class="text-2xl font-bold mb-2">${escapeHTML(c.term)}</div>
+                  <div class="text-sm text-gray-500 truncate">(click to flip)</div>
+                </div>
+                <div class="card-back absolute inset-0">
+                  <div class="text-2xl font-semibold mb-2">Answer</div>
+                  <div class="text-lg">${escapeHTML(c.definition)}</div>
+                </div>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button class="px-4 py-2 border rounded" onclick="prevCard()">Prev</button>
+              <button class="px-4 py-2 border rounded" onclick="nextCard()">Next</button>
+            </div>
+
+          </div>
+        `;
+        const cardEl = document.getElementById('card');
+        cardEl.addEventListener('click', ()=> cardEl.classList.toggle('flipped'))
+      }
+
+      show();
+
+      // ✅ FIXED NEXT + PREV BUTTONS
+      window.nextCard = function () {
+        index = (index + 1) % cards.length;
+        show();
+      };
+
+      window.prevCard = function () {
+        index = (index - 1 + cards.length) % cards.length;
+        show();
+      };
+
+      window.shuffleAll = ()=>{ cards = shuffle(cards); index=0; show(); }
+    }
+
+function renderQuiz() {
+  let cards = loadCards();
+  if (cards.length < 2) {
+    root.innerHTML = `
+      <div class="text-center py-12">
+        Need at least 2 cards —
+        <button onclick="navTo('add')" class="underline text-amber-500">Add cards</button>
+      </div>
+    `;
+    return;
+  }
+
+  const questions = shuffle(cards).map(card => {
+    const choices = shuffle([
+      card.definition,
+      ...shuffle(cards.filter(c => c.id !== card.id))
+        .slice(0, 3)
+        .map(c => c.definition)
+    ]);
+    return { term: card.term, answer: card.definition, choices };
+  });
+
+  let index = 0;
+  let score = 0;
+
+  function showQuestion() {
+    const q = questions[index];
+
+    root.innerHTML = `
+      <div class="max-w-2xl mx-auto">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-2xl font-bold">Quiz</h2>
+          <span class="text-sm text-gray-500">
+            ${index + 1} / ${questions.length}
+          </span>
+        </div>
+
+        <div class="p-6 border rounded-xl shadow-sm bg-white">
+          <div class="text-xl font-semibold mb-6 text-center">
+            ${escapeHTML(q.term)}
+          </div>
+
+          <div class="grid gap-3">
+            ${q.choices.map((choice, i) => `
+              <button
+                class="choice px-4 py-3 border rounded-lg text-left transition"
+                onclick="answer(${i})"
+              >
+                ${escapeHTML(choice)}
+              </button>
+            `).join("")}
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.answer = function (i) {
+      const buttons = document.querySelectorAll(".choice");
+      const chosen = q.choices[i];
+      const correct = chosen === q.answer;
+
+      buttons.forEach(btn => btn.disabled = true);
+
+      if (correct) {
+        score++;
+        buttons[i].classList.add("bg-green-200", "border-green-400");
+      } else {
+        buttons[i].classList.add("bg-red-200", "border-red-400");
+        buttons.forEach((btn, idx) => {
+          if (q.choices[idx] === q.answer) {
+            btn.classList.add("bg-green-200", "border-green-400");
+          }
+        });
+      }
+
+      setTimeout(() => {
+        index++;
+        if (index < questions.length) {
+          showQuestion();
+        } else {
+          showResult();
+        }
+      }, 900);
+    };
+  }
+
+  function showResult() {
+    root.innerHTML = `
+      <div class="text-center p-8">
+        <h2 class="text-3xl font-bold mb-2">Quiz Complete 🎉</h2>
+        <p class="text-lg mb-4">
+          Score: <span class="font-bold">${score}/${questions.length}</span>
+        </p>
+
+        <div class="flex gap-3 justify-center">
+ <button onclick="renderQuiz()"
+"class="px-4 py-2 border rounded-lg">Retry</button>
+
+          <button
+            onclick="navTo('list')"
+            class="px-4 py-2 border rounded-lg"
+          >
+            Back to List
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  showQuestion();
+}
+
+function renderLearn() {
+  let cards = loadCards();
+  if (cards.length === 0) {
+    root.innerHTML = `<div class="text-center py-12">
+      No cards yet — <button onclick="navTo('add')" class="underline text-amber-500">Add one</button>
+    </div>`;
+    return;
+  }
+
+  // Smart learning queue
+  let queue = shuffle(cards).map(c => ({ ...c, tries: 0, mastered: false }));
+  let currentIndex = 0;
+
+  function showCard() {
+    const c = queue[currentIndex];
+    root.innerHTML = `
+      <h2 class="text-xl font-semibold mb-4">Learn Mode</h2>
+      <div class="p-6 border rounded-xl max-w-xl mx-auto">
+        <div class="text-sm text-gray-500 mb-2">
+          ${queue.filter(x=>x.mastered).length}/${queue.length} mastered
+        </div>
+        <div class="text-2xl font-bold mb-4">${escapeHTML(c.term)}</div>
+        <input id="learn-input" class="w-full p-3 border rounded mb-3" placeholder="Type your answer..." />
+        <button class="px-4 py-2 bg-purple-600 text-white rounded" onclick="checkLearn()">Submit</button>
+      </div>
+    `;
+
+    document.getElementById("learn-input").focus();
+
+    window.checkLearn = function () {
+      const user = document.getElementById("learn-input").value.trim().toLowerCase();
+      const correct = c.definition.trim().toLowerCase();
+
+      let feedback;
+
+      if (user === correct) {
+        c.tries++;
+        if (c.tries >= 2) c.mastered = true;
+        feedback = `<div class="mt-4 p-3 bg-green-100 border rounded">Correct!</div>`;
+      } else {
+        feedback = `<div class="mt-4 p-3 bg-red-100 border rounded">Wrong — ${c.definition}</div>`;
+        c.tries = 0;
+      }
+
+      root.querySelector(".p-6").insertAdjacentHTML("beforeend", feedback);
+
+      setTimeout(() => {
+        nextLearn();
+      }, 1000);
+    };
+  }
+
+  function nextLearn() {
+    const remaining = queue.filter(c => !c.mastered);
+    if (remaining.length === 0) return showDone();
+
+    // Pick next from remaining
+    currentIndex = queue.indexOf(remaining[Math.floor(Math.random() * remaining.length)]);
+    showCard();
+  }
+
+  function showDone() {
+    root.innerHTML = `
+      <div class="text-center p-6">
+        <h2 class="text-2xl font-semibold mb-2">All Mastered!</h2>
+        <p class="mb-4">Great job 🎉</p>
+        <button onclick="navTo('learn')" class="px-4 py-2 bg-purple-600 text-white rounded">Restart</button>
+      </div>
+    `;
+  }
+
+  showCard();
+}
+function renderMatch() {
+  let cards = loadCards();
+  if (cards.length < 2) {
+    root.innerHTML = `<div class="text-center py-12">
+      Need at least 2 cards — <button onclick="navTo('add')" class="underline text-amber-500">Add more</button>
+    </div>`;
+    return;
+  }
+
+  // Only 6 pairs max for speed
+  const selected = shuffle(cards).slice(0, 6);
+
+  // Build tiles
+  const tiles = shuffle([
+    ...selected.map(c => ({ id: c.id, text: c.term, type: "t" })),
+    ...selected.map(c => ({ id: c.id, text: c.definition, type: "d" }))
+  ]);
+
+  let first = null;
+  let lock = false;
+  let matched = 0;
+
+  root.innerHTML = `
+    <h2 class="text-xl font-semibold mb-4">Match Mode</h2>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3" id="match-grid"></div>
+  `;
+
+  const grid = document.getElementById("match-grid");
+
+  // Render tiles FAST
+  tiles.forEach((tile, index) => {
+    const el = document.createElement("div");
+    el.className =
+      "p-4 border rounded-lg bg-white shadow-sm cursor-pointer transition-all duration-150 active:scale-95";
+    el.textContent = tile.text;
+    el.dataset.index = index;
+    grid.appendChild(el);
+
+    el.addEventListener("click", () => selectTile(el, tile));
+  });
+
+  function selectTile(el, tile) {
+    if (lock || el.classList.contains("matched")) return;
+
+    // First pick
+    if (!first) {
+      first = { el, tile };
+      el.classList.add("bg-indigo-100");
+      return;
+    }
+
+    // Prevent double click on same tile
+    if (first.el === el) return;
+
+    // Correct match
+if (first.tile.id === tile.id && first.tile.type !== tile.type) {
+  // Remove purple highlight from the first tile
+  first.el.classList.remove("bg-indigo-100");
+
+  // Make BOTH tiles green
+  el.classList.add("bg-green-200", "matched");
+  first.el.classList.add("bg-green-200", "matched");
+
+  matched++;
+
+  first = null;
+
+  if (matched === selected.length) {
+    return setTimeout(showMatchDone, 300);
+  }
+
+  return;
+}
+
+
+    // Wrong — quick feedback
+    lock = true;
+    el.classList.add("bg-red-200");
+    first.el.classList.add("bg-red-200");
+
+    setTimeout(() => {
+      el.classList.remove("bg-red-200");
+      first.el.classList.remove("bg-red-200", "bg-indigo-100");
+      first = null;
+      lock = false;
+    }, 350);
+  }
+
+  function showMatchDone() {
+    root.innerHTML = `
+      <div class="text-center p-6">
+        <h2 class="text-2xl font-semibold mb-2">All Matched!</h2>
+        <button onclick="restartMatch()" class="px-4 py-2 bg-purple-600 text-white rounded">
+  Play Again
+</button>
+
+      </div>
+    `;
+   }
+}
+function restartMatch() {
+  location.hash = "";
+  setTimeout(() => {
+    navTo("match");
+  }, 10);
+}
+
+    // Utilities
+    function escapeHTML(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function escapeAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
+    function shuffle(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]] } return a }
+
+    // Actions
+    function editCard(id){ navTo('add:'+id); }
+    function duplicateCard(id){ const cards=loadCards(); const c=cards.find(x=>x.id===id); if(!c) return; cards.push({ id: uid(), term: c.term + ' (copy)', definition: c.definition, created: Date.now() }); saveCards(cards); navTo('list'); }
+    function deleteCardConfirm(id){ 
+if(!confirm('Delete this card?')) return;
+ const cards = loadCards().filter(c=>c.id!==id);
+ saveCards(cards); 
+ renderList(); 
+}
+    function studySingle(id){ navTo('study:'+id); }
+
+    function exportJSON(){ const data = JSON.stringify(loadCards(), null, 2); const blob = new Blob([data], {type:'application/json'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='flashcards.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
+    function importJSON(e){ const f = e.target.files[0]; if(!f) return; const reader = new FileReader(); reader.onload = ()=>{ try{ const arr = JSON.parse(reader.result); if(!Array.isArray(arr)) throw new Error('Invalid'); const cards = loadCards().concat(arr.map(x=>({ id: x.id||uid(), term: x.term||'', definition: x.definition||'' }))); saveCards(cards); alert('Imported '+arr.length+' cards'); renderCurrent(); }catch(err){ alert('Import failed: '+err.message) } } ; reader.readAsText(f); }
+
+    // Routing
+    function renderCurrent(){ const hash = location.hash.slice(1)||'home'; const [view, param] = hash.split(':');
+      if(view==='home') renderHome();
+      else if(view==='list') renderList();
+      else if(view==='add') renderAdd(param);
+      else if(view==='study') renderStudy(param);
+      else if(view==='quiz') renderQuiz();
+	else if(view==='learn') renderLearn();
+	else if(view==='match') renderMatch();
+
+      else renderHome();
+      // update nav active
+      document.querySelectorAll('nav button').forEach(b=> b.classList.remove('ring','ring-2'));
+      const map = { home: 'nav-home', list:'nav-list', add:'nav-add', study:'nav-study', quiz:'nav-quiz' };
+      const id = map[view]||'nav-home'; const el = document.getElementById(id); if(el) el.classList.add('ring','ring-indigo-200');
+    }
+
+    // nav button handlers
+    document.getElementById('nav-home').addEventListener('click', ()=>navTo('home'));
+    document.getElementById('nav-list').addEventListener('click', ()=>navTo('list'));
+    document.getElementById('nav-add').addEventListener('click', ()=>navTo('add'));
+    document.getElementById('nav-study').addEventListener('click', ()=>navTo('study'));
+    document.getElementById('nav-quiz').addEventListener('click', ()=>navTo('quiz'));
+	document.getElementById('nav-learn').addEventListener('click', ()=>navTo('learn'));
+	document.getElementById('nav-match').addEventListener('click', ()=>navTo('match'));
+
+
+    window.addEventListener('hashchange', renderCurrent);
+    // initial
+    renderCurrent();
+  </script>
+</body>
+</html>
