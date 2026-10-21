@@ -1,0 +1,6 @@
+# The original app is preserved byte-for-byte. Never reformat it.
+legacy/
+
+dist/
+coverage/
+package-lock.json

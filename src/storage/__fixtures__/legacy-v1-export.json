@@ -1,0 +1,32 @@
+[
+  {
+    "id": "k3j9x2a",
+    "term": "Mitochondria",
+    "definition": "The powerhouse of the cell; produces ATP through cellular respiration.",
+    "created": 1711300000000
+  },
+  {
+    "id": "p0q8r7s",
+    "term": "Photosynthesis",
+    "definition": "Process plants use to turn light, water, and CO2 into glucose and oxygen.",
+    "created": 1711300100000,
+    "updated": 1711400000000
+  },
+  {
+    "id": "m4n5b6v",
+    "term": "Mitochondria (copy)",
+    "definition": "The powerhouse of the cell; produces ATP through cellular respiration.",
+    "created": 1711300200000
+  },
+  {
+    "id": "imp0rt1",
+    "term": "Osmosis",
+    "definition": "Movement of water across a semi-permeable membrane."
+  },
+  {
+    "id": "html001",
+    "term": "<b>HTML tag</b>",
+    "definition": "Text like <img src=x onerror=alert(1)> & \"quotes\" must stay plain text.",
+    "created": 1711300300000
+  }
+]

@@ -1,0 +1,56 @@
+# Publishes the ORIGINAL app (legacy/index.html) to GitHub Pages, unchanged,
+# while the React rebuild is in progress. The new frontend is not deployed
+# until cutover (Milestone 5), after migration and smoke tests are ready.
+#
+# Requires Settings → Pages → Build and deployment → Source: "GitHub Actions".
+name: Deploy legacy app to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  # On pull requests the site is assembled and verified, but never deployed.
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Assemble and verify site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Assemble site from the legacy app
+        run: |
+          mkdir _site
+          cp legacy/index.html _site/index.html
+
+      - name: Verify the site is byte-for-byte the original app
+        run: |
+          node scripts/verify-legacy.mjs legacy/index.html _site/index.html
+          echo "Site contents:"
+          find _site -type f
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
