@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createEmptyAppData } from '../domain/appData';
 import { MemoryStorage } from '../test/memoryStorage';
 import legacyExport from './__fixtures__/legacy-v1-export.json';
@@ -48,6 +48,23 @@ describe('loadAppData', () => {
     expect(storage.getItem(LEGACY_STORAGE_KEY)).toBe(LEGACY_RAW);
     expect(storage.writes).toEqual([{ method: 'setItem', key: STORAGE_KEY }]);
     expect(JSON.parse(storage.getItem(STORAGE_KEY)!)).toEqual(result.ok && result.data);
+  });
+
+  it('never reads or migrates the legacy key when migrateLegacy is false', () => {
+    setup({ [LEGACY_STORAGE_KEY]: LEGACY_RAW });
+    const getItem = vi.spyOn(storage, 'getItem');
+
+    const result = loadAppData({ storage, now: NOW, migrateLegacy: false });
+
+    expect(result).toEqual({
+      ok: true,
+      data: createEmptyAppData(NOW),
+      source: 'new',
+      persisted: false,
+    });
+    expect(getItem).not.toHaveBeenCalledWith(LEGACY_STORAGE_KEY);
+    expect(storage.writes).toEqual([]);
+    vi.restoreAllMocks();
   });
 
   it('migrates only once, then reads the v2 key', () => {

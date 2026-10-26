@@ -10,6 +10,7 @@ coverage/
 npm-debug.log*
 
 # Editor and OS files
+.claude/
 .DS_Store
 .vscode/*
 !.vscode/extensions.json
