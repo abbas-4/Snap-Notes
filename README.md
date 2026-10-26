@@ -22,7 +22,7 @@ will keep doing so until the rebuild reaches feature parity and can migrate exis
 | Milestone | Scope                                                                                | Status  |
 | --------- | ------------------------------------------------------------------------------------ | ------- |
 | 1         | Tooling, domain types, storage layer, `migrateV1()`, import/export validation, CI    | ✅ Done |
-| 2         | React UI: layout, navigation, Home, List, Add/Edit, import/export                    | Planned |
+| 2         | React UI: layout, navigation, Home, List, Add/Edit, import/export                    | ✅ Done |
 | 3         | Study and Quiz modes (keyboard accessible, no timing races)                          | Planned |
 | 4         | Learn and Match modes                                                                | Planned |
 | 5         | Cutover: deploy the new app at the same URL, migrate data on first load, smoke tests | Planned |
@@ -80,8 +80,9 @@ legacy/index.html       The original app, preserved unchanged and served on GitH
 src/
   domain/               Pure TypeScript: data types, IDs, shuffle, quiz generation
   storage/              localStorage access, legacy migration, import/export, Zod schemas
-  test/                 Test setup and helpers (an in-memory Storage)
-  App.tsx, main.tsx     React entry point (placeholder until Milestone 2)
+  ui/                   React components: layout, pages, app-data provider
+  test/                 Test setup and helpers (an in-memory Storage, app rendering)
+  App.tsx, main.tsx     React entry point: routes and providers
 scripts/                Repository scripts (legacy verification)
 .github/workflows/      CI and GitHub Pages deployment
 ```
@@ -111,8 +112,8 @@ How existing cards will be carried over:
 - Migrated data is written under the new key. Data the app can't read is never overwritten.
 - Import accepts both the original array format and the new versioned format. Versioned files
   are validated strictly. Importing the same file twice doesn't duplicate cards.
-- Automatic migration starts only at cutover (Milestone 5). Until then the rebuild doesn't read
-  or write `localStorage` at all.
+- Automatic migration starts only at cutover (Milestone 5). Until then the rebuild never touches
+  the legacy key: it reads and writes only its own `snapnotes.data.v2` key.
 
 **Before the cutover, export your cards from the live app** (Home → Export) to keep a backup.
 `localStorage` is shared by every project hosted on `abbas-4.github.io`, which is why the new key

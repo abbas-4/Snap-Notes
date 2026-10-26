@@ -44,6 +44,12 @@ export interface StoreOptions {
   storage?: Storage | null;
   now?: Timestamp;
   createId?: IdFactory;
+  /**
+   * Whether `loadAppData` may read the legacy key and migrate its data when no
+   * v2 data exists. Defaults to true. The UI passes false until cutover
+   * (Milestone 5), so the rebuild never touches the legacy key.
+   */
+  migrateLegacy?: boolean;
 }
 
 /** Accessing `window.localStorage` itself can throw (e.g. when cookies are blocked). */
@@ -101,7 +107,8 @@ export function loadAppData(options: StoreOptions = {}): LoadResult {
   let legacyRaw: string | null;
   try {
     raw = storage.getItem(STORAGE_KEY);
-    legacyRaw = raw === null ? storage.getItem(LEGACY_STORAGE_KEY) : null;
+    legacyRaw =
+      raw === null && (options.migrateLegacy ?? true) ? storage.getItem(LEGACY_STORAGE_KEY) : null;
   } catch (error) {
     return { ok: false, error: 'unavailable', message: String(error) };
   }
