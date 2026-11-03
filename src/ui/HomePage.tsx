@@ -44,6 +44,34 @@ export default function HomePage() {
         )}
       </section>
 
+      {total > 0 && (
+        <section aria-labelledby="review-heading">
+          <h2 id="review-heading" className="text-lg font-semibold">
+            Review your cards
+          </h2>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <h3 className="font-semibold">Study</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                Flip through your cards one at a time, at your own pace.
+              </p>
+              <Link to="/study" className={`${primaryButton} mt-3`}>
+                Study cards
+              </Link>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <h3 className="font-semibold">Quiz</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                Answer multiple-choice questions built from your definitions.
+              </p>
+              <Link to="/quiz" className={`${primaryButton} mt-3`}>
+                Take a quiz
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+
       {recent.length > 0 && (
         <section aria-labelledby="recent-heading">
           <h2 id="recent-heading" className="text-lg font-semibold">

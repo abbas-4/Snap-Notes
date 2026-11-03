@@ -5,6 +5,8 @@ import HomePage from './ui/HomePage';
 import Layout from './ui/Layout';
 import ListPage from './ui/ListPage';
 import NotFoundPage from './ui/NotFoundPage';
+import QuizPage from './ui/QuizPage';
+import StudyPage from './ui/StudyPage';
 import UnsavedChangesProvider from './ui/UnsavedChangesProvider';
 
 interface AppProps {
@@ -20,6 +22,8 @@ export default function App({ storage }: AppProps = {}) {
           <Route element={<Layout />}>
             <Route index element={<HomePage />} />
             <Route path="list" element={<ListPage />} />
+            <Route path="study" element={<StudyPage />} />
+            <Route path="quiz" element={<QuizPage />} />
             <Route path="add" element={<CardFormPage mode="add" />} />
             <Route path="edit/:cardId" element={<CardFormPage mode="edit" />} />
             <Route path="*" element={<NotFoundPage />} />
