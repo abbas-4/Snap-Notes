@@ -14,6 +14,8 @@ describe('App', () => {
     expect(nav).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Cards' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Study' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Quiz' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Add card' })).toBeInTheDocument();
   });
 
@@ -23,6 +25,12 @@ describe('App', () => {
 
     await user.click(screen.getByRole('link', { name: 'Cards' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Cards' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('link', { name: 'Study' }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Study' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('link', { name: 'Quiz' }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Quiz' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('link', { name: 'Add card' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Add a card' })).toBeInTheDocument();

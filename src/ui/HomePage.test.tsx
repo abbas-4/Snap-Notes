@@ -23,6 +23,18 @@ describe('HomePage', () => {
     expect(screen.getByRole('link', { name: 'Add your first card' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Import cards…' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Export cards' })).toBeDisabled();
+    expect(screen.queryByRole('link', { name: 'Study cards' })).not.toBeInTheDocument();
+  });
+
+  it('offers Study and Quiz once there are cards', async () => {
+    const user = userEvent.setup();
+    renderApp({ storage: storageWithCards([makeCard({ term: 'Only card' })]) });
+
+    expect(screen.getByRole('link', { name: 'Take a quiz' })).toHaveAttribute('href', '/quiz');
+    await user.click(screen.getByRole('link', { name: 'Study cards' }));
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Study' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Only card' })).toBeInTheDocument();
   });
 
   it('shows the total and the most recently updated cards first', () => {

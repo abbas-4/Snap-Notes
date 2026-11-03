@@ -33,7 +33,7 @@ export default function Layout() {
             Snap <span className="text-indigo-700">Notes</span>
           </NavLink>
           <nav aria-label="Main">
-            <ul className="flex gap-1">
+            <ul className="flex flex-wrap gap-1">
               <li>
                 <NavLink to="/" end onClick={guardNavigation} className={navLinkClass}>
                   Home
@@ -42,6 +42,16 @@ export default function Layout() {
               <li>
                 <NavLink to="/list" onClick={guardNavigation} className={navLinkClass}>
                   Cards
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/study" onClick={guardNavigation} className={navLinkClass}>
+                  Study
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/quiz" onClick={guardNavigation} className={navLinkClass}>
+                  Quiz
                 </NavLink>
               </li>
               <li>
