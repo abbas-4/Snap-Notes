@@ -1,3 +1,4 @@
+import { hasBothSides, textKey } from './cardText';
 import type { RandomFn } from './random';
 import { shuffle } from './shuffle';
 import type { Card } from './types';
@@ -23,16 +24,14 @@ export const DEFAULT_CHOICE_COUNT = 4;
 
 /** A card can be quizzed only when both sides have visible text. */
 export function isQuizEligible(card: Card): boolean {
-  return card.term.trim() !== '' && card.definition.trim() !== '';
+  return hasBothSides(card);
 }
 
 /**
  * Two definitions that differ only by case or spacing look identical on screen,
  * so they are treated as the same answer.
  */
-function answerKey(text: string): string {
-  return text.trim().replace(/\s+/g, ' ').toLowerCase();
-}
+const answerKey = textKey;
 
 /**
  * Builds one multiple-choice question per eligible card, in random order.
