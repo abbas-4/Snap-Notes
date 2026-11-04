@@ -77,6 +77,15 @@ export default function HomePage() {
                 Start learning
               </Link>
             </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <h3 className="font-semibold">Match</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                Pair terms with their definitions against the clock.
+              </p>
+              <Link to="/match" className={`${primaryButton} mt-3`}>
+                Play match
+              </Link>
+            </div>
           </div>
         </section>
       )}

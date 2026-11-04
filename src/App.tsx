@@ -5,6 +5,7 @@ import HomePage from './ui/HomePage';
 import Layout from './ui/Layout';
 import LearnPage from './ui/LearnPage';
 import ListPage from './ui/ListPage';
+import MatchPage from './ui/MatchPage';
 import NotFoundPage from './ui/NotFoundPage';
 import QuizPage from './ui/QuizPage';
 import StudyPage from './ui/StudyPage';
@@ -26,6 +27,7 @@ export default function App({ storage }: AppProps = {}) {
             <Route path="study" element={<StudyPage />} />
             <Route path="quiz" element={<QuizPage />} />
             <Route path="learn" element={<LearnPage />} />
+            <Route path="match" element={<MatchPage />} />
             <Route path="add" element={<CardFormPage mode="add" />} />
             <Route path="edit/:cardId" element={<CardFormPage mode="edit" />} />
             <Route path="*" element={<NotFoundPage />} />

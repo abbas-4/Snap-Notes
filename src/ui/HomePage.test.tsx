@@ -32,6 +32,7 @@ describe('HomePage', () => {
 
     expect(screen.getByRole('link', { name: 'Take a quiz' })).toHaveAttribute('href', '/quiz');
     expect(screen.getByRole('link', { name: 'Start learning' })).toHaveAttribute('href', '/learn');
+    expect(screen.getByRole('link', { name: 'Play match' })).toHaveAttribute('href', '/match');
     await user.click(screen.getByRole('link', { name: 'Study cards' }));
 
     expect(screen.getByRole('heading', { level: 1, name: 'Study' })).toBeInTheDocument();
