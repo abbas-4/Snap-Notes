@@ -68,6 +68,24 @@ export default function HomePage() {
                 Take a quiz
               </Link>
             </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <h3 className="font-semibold">Learn</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                Check yourself card by card; the ones you miss come back until you know them.
+              </p>
+              <Link to="/learn" className={`${primaryButton} mt-3`}>
+                Start learning
+              </Link>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <h3 className="font-semibold">Match</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                Pair terms with their definitions against the clock.
+              </p>
+              <Link to="/match" className={`${primaryButton} mt-3`}>
+                Play match
+              </Link>
+            </div>
           </div>
         </section>
       )}

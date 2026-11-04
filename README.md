@@ -7,8 +7,8 @@ review them in four modes:
 
 - **Study**: flip through cards one at a time.
 - **Quiz**: multiple-choice questions built from your own definitions.
-- **Learn**: type the answer; a card counts as mastered after two correct answers in a row.
-- **Match**: pair terms with their definitions.
+- **Learn**: reveal each definition and say whether you knew it; cards you miss come back until you know them.
+- **Match**: pair terms with their definitions against the clock.
 
 **Live app:** <https://abbas-4.github.io/Snap-Notes/>
 
@@ -24,7 +24,7 @@ will keep doing so until the rebuild reaches feature parity and can migrate exis
 | 1         | Tooling, domain types, storage layer, `migrateV1()`, import/export validation, CI    | ✅ Done |
 | 2         | React UI: layout, navigation, Home, List, Add/Edit, import/export                    | ✅ Done |
 | 3         | Study and Quiz modes (keyboard accessible, no timing races)                          | ✅ Done |
-| 4         | Learn and Match modes                                                                | Planned |
+| 4         | Learn and Match modes                                                                | ✅ Done |
 | 5         | Cutover: deploy the new app at the same URL, migrate data on first load, smoke tests | Planned |
 | 6         | Decks: create, rename, and study cards by deck                                       | Planned |
 | 7         | Spaced repetition and saved progress                                                 | Planned |
@@ -78,7 +78,7 @@ To try the original app locally, open `legacy/index.html` in a browser.
 ```
 legacy/index.html       The original app, preserved unchanged and served on GitHub Pages
 src/
-  domain/               Pure TypeScript: data types, IDs, shuffle, quiz generation, study/quiz sessions
+  domain/               Pure TypeScript: data types, IDs, shuffle, quiz and match rounds, mode sessions
   storage/              localStorage access, legacy migration, import/export, Zod schemas
   ui/                   React components: layout, pages, app-data provider
   test/                 Test setup and helpers (an in-memory Storage, app rendering)
