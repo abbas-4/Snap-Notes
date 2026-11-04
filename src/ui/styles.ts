@@ -7,6 +7,12 @@ export const primaryButton = `${buttonBase} bg-indigo-600 text-white shadow-sm h
 
 export const secondaryButton = `${buttonBase} border border-gray-300 bg-white text-gray-700 shadow-sm hover:bg-gray-50`;
 
+/** A positive answer, such as "I know it". */
+export const successButton = `${buttonBase} bg-green-700 text-white shadow-sm hover:bg-green-800`;
+
+/** A not-yet answer, such as "Still learning". */
+export const cautionButton = `${buttonBase} border border-amber-300 bg-white text-amber-900 shadow-sm hover:bg-amber-50`;
+
 export const dangerButton = `${buttonBase} border border-red-200 bg-white text-red-700 shadow-sm hover:bg-red-50 focus-visible:outline-red-600`;
 
 export const textField =

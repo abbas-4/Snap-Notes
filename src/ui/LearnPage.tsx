@@ -16,7 +16,7 @@ import { eligibilitySummary } from './cardText';
 import EmptyState from './EmptyState';
 import { activatesFocusedControl, isShortcutBlocked } from './keyboard';
 import ProgressBar from './ProgressBar';
-import { primaryButton, secondaryButton } from './styles';
+import { cautionButton, primaryButton, secondaryButton, successButton } from './styles';
 import { useFocusOnChange } from './useFocusOnChange';
 
 const focusRing =
@@ -225,7 +225,7 @@ function LearnCardView({
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <button
                 type="button"
-                className={`${secondaryButton} border-amber-300 text-amber-900 hover:bg-amber-50`}
+                className={cautionButton}
                 aria-keyshortcuts="1"
                 onClick={() => onGrade(false)}
               >
@@ -233,7 +233,7 @@ function LearnCardView({
               </button>
               <button
                 type="button"
-                className={`${primaryButton} bg-green-700 hover:bg-green-800`}
+                className={successButton}
                 aria-keyshortcuts="2"
                 onClick={() => onGrade(true)}
               >
