@@ -33,6 +33,8 @@ export interface LearnState {
   misses: ReadonlyMap<string, number>;
   /** Set when the user ends the session before every card is mastered. */
   ended: boolean;
+  /** The most recent grade, so the screen can confirm it. Null before the first. */
+  lastGrade: { cardId: string; knew: boolean } | null;
 }
 
 export type LearnAction =
@@ -73,6 +75,7 @@ export function startLearn(cards: readonly Card[], sessionId = 1): LearnState {
     mastered: [],
     misses: new Map(),
     ended: false,
+    lastGrade: null,
   };
 }
 
@@ -125,7 +128,12 @@ export function learnReducer(state: LearnState, action: LearnAction): LearnState
       if (!isCurrent(state, action) || learnPhase(state) !== 'revealed') return state;
       const [id, ...rest] = state.queue;
       if (id === undefined) return state;
-      const next = { ...state, turn: state.turn + 1, revealed: false };
+      const next = {
+        ...state,
+        turn: state.turn + 1,
+        revealed: false,
+        lastGrade: { cardId: id, knew: action.knew },
+      };
       if (action.knew) {
         return { ...next, queue: rest, mastered: [...state.mastered, id] };
       }

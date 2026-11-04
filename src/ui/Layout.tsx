@@ -55,6 +55,11 @@ export default function Layout() {
                 </NavLink>
               </li>
               <li>
+                <NavLink to="/learn" onClick={guardNavigation} className={navLinkClass}>
+                  Learn
+                </NavLink>
+              </li>
+              <li>
                 <NavLink to="/add" onClick={guardNavigation} className={navLinkClass}>
                   Add card
                 </NavLink>

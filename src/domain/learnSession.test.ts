@@ -71,6 +71,7 @@ describe('learnReducer', () => {
     expect(currentLearnCard(state)).toBe(cards[1]);
     expect(learnPhase(state)).toBe('prompt');
     expect(state.turn).toBe(1);
+    expect(state.lastGrade).toEqual({ cardId: 'a', knew: true });
   });
 
   it(`brings a missed card back after ${REQUEUE_GAP} other cards`, () => {
@@ -79,6 +80,7 @@ describe('learnReducer', () => {
     expect(state.queue).toEqual(['b', 'c', 'd', 'a', 'e']);
     expect(state.misses.get('a')).toBe(1);
     expect(state.mastered).toEqual([]);
+    expect(state.lastGrade).toEqual({ cardId: 'a', knew: false });
   });
 
   it('puts a missed card at the end when fewer cards are left than the gap', () => {
@@ -147,7 +149,13 @@ describe('learnReducer', () => {
     const restarted = run(old, { type: 'restart', cards: [card('x'), card('y')] });
 
     expect(restarted.sessionId).not.toBe(old.sessionId);
-    expect(restarted).toMatchObject({ queue: ['x', 'y'], turn: 0, revealed: false, mastered: [] });
+    expect(restarted).toMatchObject({
+      queue: ['x', 'y'],
+      turn: 0,
+      revealed: false,
+      mastered: [],
+      lastGrade: null,
+    });
 
     // Both of these were valid for the old session at the same turn.
     expect(run(restarted, grade(old, true))).toBe(restarted);
