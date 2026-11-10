@@ -6,6 +6,7 @@ import {
   exportFileName,
   MAX_IMPORT_CHARACTERS,
   mergeImportedData,
+  withoutKnownCards,
   parseImportFile,
   serializeExport,
 } from './importExport';
@@ -243,5 +244,42 @@ describe('mergeImportedData', () => {
     mergeImportedData(existing, incoming);
 
     expect({ existing, incoming }).toEqual(before);
+  });
+});
+
+describe('withoutKnownCards', () => {
+  const card = (id: string, term: string, definition = 'D') => ({
+    id,
+    deckId: 'default',
+    term,
+    definition,
+    createdAt: 1,
+    updatedAt: 1,
+  });
+  const data = (cards: ReturnType<typeof card>[]) => ({
+    schemaVersion: 2 as const,
+    decks: [],
+    cards,
+  });
+
+  it('drops incoming cards with the same content, whatever their ID', () => {
+    const result = withoutKnownCards(
+      data([card('a', 'Same')]),
+      data([card('random-1', 'Same'), card('b', 'New')]),
+    );
+
+    expect(result.data.cards.map((c) => c.id)).toEqual(['b']);
+    expect(result.skipped).toBe(1);
+  });
+
+  it('keeps a different card that reuses an ID, unless IDs are matched too', () => {
+    const existing = data([card('a', 'Edited here')]);
+    const incoming = data([card('a', 'Old version')]);
+
+    expect(withoutKnownCards(existing, incoming).data.cards).toHaveLength(1);
+    expect(withoutKnownCards(existing, incoming, { matchIds: true })).toMatchObject({
+      data: { cards: [] },
+      skipped: 1,
+    });
   });
 });

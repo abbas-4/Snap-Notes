@@ -6,10 +6,16 @@ export class MemoryStorage implements Storage {
   private items = new Map<string, string>();
   readonly writes: Array<{ method: 'setItem' | 'removeItem' | 'clear'; key?: string }> = [];
   failReads: Error | null = null;
+  /** Thrown by every write. */
   failWrites: Error | null = null;
+  /** Thrown by writes to the keys this picks, so one key can fail while others work. */
+  failWritesFor: ((key: string) => Error | null) | null = null;
+  /** Accept writes without storing them, as some private browsing modes do. */
+  dropWrites = false;
 
   constructor(initial: Record<string, string> = {}) {
     for (const [key, value] of Object.entries(initial)) this.items.set(key, value);
+    createdStorages.push(this);
   }
 
   get length() {
@@ -27,8 +33,9 @@ export class MemoryStorage implements Storage {
 
   setItem(key: string, value: string) {
     this.writes.push({ method: 'setItem', key });
-    if (this.failWrites) throw this.failWrites;
-    this.items.set(key, String(value));
+    const error = this.failWrites ?? this.failWritesFor?.(key);
+    if (error) throw error;
+    if (!this.dropWrites) this.items.set(key, String(value));
   }
 
   removeItem(key: string) {
@@ -41,3 +48,6 @@ export class MemoryStorage implements Storage {
     this.items.clear();
   }
 }
+
+/** Every storage made since the last test, so the test setup can check them all. */
+export const createdStorages: MemoryStorage[] = [];
