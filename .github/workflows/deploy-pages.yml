@@ -6,10 +6,11 @@
 #   app     the Vite production build at the site root, with the original app kept at
 #           /legacy/index.html.
 #
-# Cutover: change PUBLISH to app. Rollback: change it back to legacy. Nothing else has to
-# change, because every run builds and verifies the React app whichever value is set, so
-# both are always known to be deployable, and the smoke job checks what the live site
-# really serves after each deployment.
+# Cutover: change PUBLISH to app. Rollback: change it back to legacy. Every run tests, builds
+# and verifies the React app whichever value is set, so both are always known to be
+# deployable, and the smoke job checks what the live site really serves after each
+# deployment. A rollback run therefore also needs the tests and build to pass; if they
+# cannot, re-run the deploy job of the last run that published the original app.
 #
 # Requires Settings → Pages → Build and deployment → Source: "GitHub Actions".
 name: Deploy to GitHub Pages

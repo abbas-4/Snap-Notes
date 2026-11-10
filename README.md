@@ -16,19 +16,20 @@ review them in four modes:
 
 The original app is a single HTML file ([`legacy/index.html`](legacy/index.html)) that keeps
 cards in the browser's `localStorage`. It is being rebuilt as a typed, tested React application,
-one small milestone at a time. **The live site still serves the original app, unchanged**, and
-will keep doing so until the rebuild reaches feature parity and can migrate existing cards safely.
+one small milestone at a time. **The live site still serves the original app, unchanged.** The
+rebuild has reached feature parity and can migrate existing cards safely; the last step of
+Milestone 5 is the switch that publishes it at the same address (see [Deployment](#deployment)).
 
-| Milestone | Scope                                                                                | Status  |
-| --------- | ------------------------------------------------------------------------------------ | ------- |
-| 1         | Tooling, domain types, storage layer, `migrateV1()`, import/export validation, CI    | ✅ Done |
-| 2         | React UI: layout, navigation, Home, List, Add/Edit, import/export                    | ✅ Done |
-| 3         | Study and Quiz modes (keyboard accessible, no timing races)                          | ✅ Done |
-| 4         | Learn and Match modes                                                                | ✅ Done |
-| 5         | Cutover: deploy the new app at the same URL, migrate data on first load, smoke tests | Planned |
-| 6         | Decks: create, rename, and study cards by deck                                       | Planned |
-| 7         | Spaced repetition and saved progress                                                 | Planned |
-| 8+        | Backend (Node, Express, PostgreSQL, Prisma), accounts, sync across devices           | Later   |
+| Milestone | Scope                                                                                | Status                                               |
+| --------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| 1         | Tooling, domain types, storage layer, `migrateV1()`, import/export validation, CI    | ✅ Done                                              |
+| 2         | React UI: layout, navigation, Home, List, Add/Edit, import/export                    | ✅ Done                                              |
+| 3         | Study and Quiz modes (keyboard accessible, no timing races)                          | ✅ Done                                              |
+| 4         | Learn and Match modes                                                                | ✅ Done                                              |
+| 5         | Cutover: deploy the new app at the same URL, migrate data on first load, smoke tests | 🚧 Migration and recovery built; site switch pending |
+| 6         | Decks: create, rename, and study cards by deck                                       | Planned                                              |
+| 7         | Spaced repetition and saved progress                                                 | Planned                                              |
+| 8+        | Backend (Node, Express, PostgreSQL, Prisma), accounts, sync across devices           | Later                                                |
 
 A backend is deliberately left for later. Everything up to Milestone 7 works entirely in the
 browser. A server becomes necessary only for features the browser can't provide: accounts,
@@ -72,6 +73,7 @@ To try the original app locally, open `legacy/index.html` in a browser.
 | `npm run typecheck`               | Type-check with `tsc`                                       |
 | `npm run build`                   | Type-check and build into `dist/`                           |
 | `npm run verify:legacy`           | Confirm `legacy/index.html` is byte-for-byte the original   |
+| `npm run verify:site -- <dir>`    | Check an assembled site (or `--url` for the live one)       |
 
 ## Project structure
 
@@ -83,7 +85,7 @@ src/
   ui/                   React components: layout, pages, app-data provider
   test/                 Test setup and helpers (an in-memory Storage, app rendering)
   App.tsx, main.tsx     React entry point: routes and providers
-scripts/                Repository scripts (legacy verification)
+scripts/                Repository scripts (legacy and site verification)
 .github/workflows/      CI and GitHub Pages deployment
 ```
 
@@ -99,9 +101,14 @@ in-memory fake.
 | Shape            | `[{ id, term, definition, created?, updated? }]` | `{ schemaVersion: 2, decks, cards }`                                   |
 | Export file      | The bare array                                   | `{ format: "snap-notes", schemaVersion: 2, exportedAt, decks, cards }` |
 
-How existing cards will be carried over:
+The first time the rebuild opens in a browser that has cards from the original app, it moves
+them over automatically:
 
-- **The original key is never written to or deleted.** The legacy data stays in place as a backup.
+- **The original key is never written to or deleted.** The legacy data stays in place as a
+  backup, and the original app keeps working from it.
+- Migration runs only when there is no `snapnotes.data.v2` data at all. Any existing v2 data,
+  even an empty collection, always wins, so the migration happens once and never overwrites
+  anything.
 - `migrateV1()` ([`src/storage/migrations.ts`](src/storage/migrations.ts)) is a pure function:
   - It keeps term and definition text exactly as written, including text that looks like HTML.
   - It converts numbers and booleans to text.
@@ -109,22 +116,52 @@ How existing cards will be carried over:
   - It fills in missing timestamps.
   - It puts every card in a default **My Cards** deck.
   - It returns a report of every change it made.
-- Migrated data is written under the new key. Data the app can't read is never overwritten.
+- The migrated data is written under the new key and read back to confirm it landed. A short
+  record of what happened is kept under `snapnotes.migration.v1`; it only drives the notice in
+  the app and never decides whether a migration runs.
+- The app then says what happened: a notice when every card moved, a list of the entries that
+  could not be moved (with a download of the original data) when only some did.
+- If the browser can't save the migrated cards (for example, storage is full), they stay on
+  screen, a warning explains it, nothing partial is left behind, and the next visit tries again.
+- If the original data can't be read as cards at all, the app writes nothing and asks what to
+  do: download the original data, open the original app, restore from a backup file, or start
+  with an empty collection. It never starts empty on its own.
 - Import accepts both the original array format and the new versioned format. Versioned files
-  are validated strictly. Importing the same file twice doesn't duplicate cards.
-- Automatic migration starts only at cutover (Milestone 5). Until then the rebuild never touches
-  the legacy key: it reads and writes only its own `snapnotes.data.v2` key.
+  are validated strictly. Importing the same file twice doesn't duplicate cards. When the
+  original app's data is present, **Import cards from the original app** on the home page merges
+  it in, which also covers cards added there after the switch.
 
 **Before the cutover, export your cards from the live app** (Home → Export) to keep a backup.
-`localStorage` is shared by every project hosted on `abbas-4.github.io`, which is why the new key
-has a `snapnotes.` prefix.
+`localStorage` is shared by every project hosted on `abbas-4.github.io`, which is why the new keys
+have a `snapnotes.` prefix.
 
 ## Deployment
 
 GitHub Pages is deployed by [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml)
-(repository **Settings → Pages → Source: GitHub Actions**). Until cutover, the workflow publishes
-`legacy/index.html` as the site's `index.html` and checks that it's byte-for-byte the original.
-On pull requests it only assembles and verifies the site; it deploys only from `main`.
+(repository **Settings → Pages → Source: GitHub Actions**; with "Deploy from a branch" Pages
+publishes the repository root instead, which is a blank page).
+
+One value in that workflow, `PUBLISH`, decides what the site serves:
+
+| `PUBLISH` | Site root                                 | `/legacy/index.html` |
+| --------- | ----------------------------------------- | -------------------- |
+| `legacy`  | The original app, byte-for-byte (current) | Not published        |
+| `app`     | The React build from `dist/`              | The original app     |
+
+Every run tests and builds the React app and checks that the build is deployable, whichever
+value is set. On pull requests the site is only assembled and verified; it deploys only from
+`main`, and a smoke job then checks what the live site really serves.
+
+- **Cutover:** change `PUBLISH` to `app`. The address stays the same. Old bookmarks such as
+  `#home`, `#add:<id>` and `#study:<id>` are redirected. Pages caches pages for about ten
+  minutes, so some visitors see the previous page briefly.
+- **Rollback:** change `PUBLISH` back to `legacy`. (That run still tests and builds the React
+  app first; if those can't pass, re-run the deploy job of the last run that published the
+  original app.) The original app reads only its own key, so
+  it shows the cards exactly as they were before the cutover. Cards created in the rebuild stay
+  under `snapnotes.data.v2`, untouched, and reappear when the rebuild is published again. The
+  original app can't read the rebuild's export files, so those cards aren't visible during a
+  rollback.
 
 ## License
 
