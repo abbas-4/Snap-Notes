@@ -2,19 +2,26 @@ import { createDefaultDeck, DEFAULT_DECK_ID } from '../domain/appData';
 import { createId, isValidId, type IdFactory } from '../domain/ids';
 import { SCHEMA_VERSION, type AppData, type Card, type Timestamp } from '../domain/types';
 
-export type MigrationIssueKind =
-  | 'unreadable-json'
-  | 'not-an-array'
-  | 'skipped-record'
-  | 'replaced-id'
-  | 'converted-field'
-  | 'dropped-field'
-  | 'filled-timestamp';
+export const MIGRATION_ISSUE_KINDS = [
+  'unreadable-json',
+  'not-an-array',
+  'skipped-record',
+  'replaced-id',
+  'converted-field',
+  'dropped-field',
+  'filled-timestamp',
+] as const;
+
+export type MigrationIssueKind = (typeof MIGRATION_ISSUE_KINDS)[number];
 
 export interface MigrationIssue {
   kind: MigrationIssueKind;
   /** Position of the record in the legacy array, when the issue concerns one record. */
   index?: number;
+  /** Which text field a `converted-field` or `dropped-field` issue is about. */
+  field?: 'term' | 'definition';
+  /** Why a `skipped-record` was left out. */
+  reason?: 'not-an-object' | 'no-text';
   message: string;
 }
 
@@ -87,6 +94,7 @@ export function migrateV1(legacy: unknown, options: MigrationOptions = {}): Migr
       issues.push({
         kind: 'skipped-record',
         index,
+        reason: 'not-an-object',
         message: `Record ${index} is not a card object.`,
       });
       return;
@@ -99,6 +107,7 @@ export function migrateV1(legacy: unknown, options: MigrationOptions = {}): Migr
         issues.push({
           kind: 'converted-field',
           index,
+          field,
           message: `Record ${index}: ${field} was a ${typeof value} and was converted to text.`,
         });
         return String(value);
@@ -107,6 +116,7 @@ export function migrateV1(legacy: unknown, options: MigrationOptions = {}): Migr
         issues.push({
           kind: 'dropped-field',
           index,
+          field,
           message: `Record ${index}: ${field} had an unsupported type and was left empty.`,
         });
       }
@@ -119,6 +129,7 @@ export function migrateV1(legacy: unknown, options: MigrationOptions = {}): Migr
       issues.push({
         kind: 'skipped-record',
         index,
+        reason: 'no-text',
         message: `Record ${index} has neither a term nor a definition.`,
       });
       return;

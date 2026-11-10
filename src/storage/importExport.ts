@@ -167,3 +167,29 @@ export function mergeImportedData(
 
   return { data: { schemaVersion: SCHEMA_VERSION, decks, cards }, report };
 }
+
+/**
+ * Removes incoming cards the collection already holds, judged by content.
+ *
+ * Legacy data is matched this way because its IDs are not stable: a record
+ * with a missing or duplicate ID gets a new random one on every migration, so
+ * matching by ID alone would add another copy each time the same data came in.
+ * With `matchIds`, a card whose ID is already in use is dropped too: when
+ * re-reading the original app's storage, the existing card (perhaps edited
+ * since) is the one to keep.
+ */
+export function withoutKnownCards(
+  existing: AppData,
+  incoming: AppData,
+  { matchIds = false }: { matchIds?: boolean } = {},
+): { data: AppData; skipped: number } {
+  const contentKey = (card: { deckId: string; term: string; definition: string }) =>
+    JSON.stringify([card.deckId, card.term, card.definition]);
+  const knownContent = new Set(existing.cards.map(contentKey));
+  const knownIds = new Set(existing.cards.map((card) => card.id));
+
+  const cards = incoming.cards.filter(
+    (card) => !knownContent.has(contentKey(card)) && !(matchIds && knownIds.has(card.id)),
+  );
+  return { data: { ...incoming, cards }, skipped: incoming.cards.length - cards.length };
+}

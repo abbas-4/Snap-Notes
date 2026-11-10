@@ -1,9 +1,11 @@
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { LEGACY_STORAGE_KEY, STORAGE_KEY } from './storage/localStore';
+import { MIGRATION_RECORD_KEY } from './storage/migrationRecord';
 import { MemoryStorage } from './test/memoryStorage';
 import { makeCard, renderApp, storageWithCards } from './test/renderApp';
+import { LEGACY_APP_URL } from './ui/legacyApp';
 
 describe('App', () => {
   it('renders the home page with navigation', () => {
@@ -54,19 +56,21 @@ describe('App', () => {
     expect(screen.getByRole('link', { name: 'Go to the home page' })).toBeInTheDocument();
   });
 
-  it('never reads or migrates the legacy key before cutover', () => {
+  it("moves the original app's cards over on the first visit", () => {
     const storage = new MemoryStorage({
       [LEGACY_STORAGE_KEY]: JSON.stringify([{ id: 'a', term: 'legacy', definition: 'card' }]),
     });
-    const getItem = vi.spyOn(storage, 'getItem');
 
     renderApp({ storage });
 
-    // The legacy data is invisible to the rebuild: the app starts empty.
-    expect(screen.getByRole('heading', { name: 'No cards yet' })).toBeInTheDocument();
-    expect(getItem).not.toHaveBeenCalledWith(LEGACY_STORAGE_KEY);
-    expect(storage.writes).toEqual([]);
-    vi.restoreAllMocks();
+    expect(screen.getByText('legacy')).toBeInTheDocument();
+    expect(
+      screen.getByRole('status', { name: 'Welcome to the new Snap Notes' }),
+    ).toBeInTheDocument();
+    expect(JSON.parse(storage.getItem(STORAGE_KEY)!).cards).toMatchObject([
+      { id: 'a', term: 'legacy', definition: 'card', deckId: 'default' },
+    ]);
+    expect(storage.writes.map((w) => w.key)).toEqual([STORAGE_KEY, MIGRATION_RECORD_KEY]);
   });
 
   it('refuses to run over unreadable stored data and offers a backup', () => {
@@ -78,6 +82,10 @@ describe('App', () => {
       screen.getByRole('heading', { name: 'Your saved cards could not be read' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download my data' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open the original app' })).toHaveAttribute(
+      'href',
+      LEGACY_APP_URL,
+    );
     // Nothing is overwritten.
     expect(storage.writes).toEqual([]);
     expect(storage.getItem(STORAGE_KEY)).toBe('{broken json');
@@ -101,5 +109,20 @@ describe('App', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('Browser storage is unavailable');
     expect(screen.getByRole('heading', { level: 1, name: 'Your flashcards' })).toBeInTheDocument();
+  });
+
+  it('runs in memory when the browser blocks every read of storage', async () => {
+    const user = userEvent.setup();
+    const storage = new MemoryStorage();
+    storage.failReads = new DOMException('Access denied', 'SecurityError');
+
+    renderApp({ storage, route: '/add' });
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Browser storage is unavailable');
+    await user.type(screen.getByLabelText('Term'), 'In memory');
+    await user.type(screen.getByLabelText('Definition'), 'Only');
+    await user.click(screen.getByRole('button', { name: 'Add card' }));
+    expect(screen.getByText('In memory')).toBeInTheDocument();
+    expect(storage.writes).toEqual([]);
   });
 });

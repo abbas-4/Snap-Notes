@@ -1,6 +1,7 @@
 import type { MouseEvent } from 'react';
 import { NavLink, Outlet } from 'react-router';
 import { useAppData } from './appData';
+import MigrationNotice from './MigrationNotice';
 import { useUnsavedChanges } from './unsavedChanges';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -82,6 +83,7 @@ export default function Layout() {
         </p>
       )}
       <main id="main" className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
+        <MigrationNotice />
         <Outlet />
       </main>
     </div>
