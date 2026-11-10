@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react';
 import type { AppData } from '../domain/types';
 import type { MergeReport } from '../storage/importExport';
+import type { MigrationRecord } from '../storage/migrationRecord';
 
 export type WriteResult = { ok: true } | { ok: false; message: string };
 
@@ -17,8 +18,17 @@ export interface CardInput {
  */
 export interface AppDataValue {
   data: AppData;
-  /** Set when changes cannot be persisted (browser storage is unavailable). */
+  /** Set when changes cannot be persisted (browser storage is unavailable or refused a write). */
   persistenceWarning: string | null;
+  /** The record of the move from the original app, until the user dismisses the notice about it. */
+  migrationRecord: MigrationRecord | null;
+  dismissMigrationNotice(): void;
+  /** Whether the original app left data in this browser. */
+  legacyDataAvailable: boolean;
+  /** The original app's data exactly as stored, or null when there is none or it cannot be read. */
+  legacyRawData(): string | null;
+  /** Reads the original app's cards and merges them into the current data. */
+  importFromLegacy(): ImportOutcome;
   addCard(input: CardInput): WriteResult;
   updateCard(id: string, input: CardInput): WriteResult;
   deleteCard(id: string): WriteResult;

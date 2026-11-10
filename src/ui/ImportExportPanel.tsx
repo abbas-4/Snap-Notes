@@ -1,6 +1,6 @@
 import { useRef, useState, type ChangeEvent } from 'react';
 import { exportFileName } from '../storage/importExport';
-import { useAppData } from './appData';
+import { useAppData, type ImportOutcome } from './appData';
 import { downloadTextFile } from './download';
 import { secondaryButton } from './styles';
 
@@ -11,7 +11,7 @@ type Status = { kind: 'success' | 'error'; text: string };
  * changes stored data; the storage layer validates before anything is written.
  */
 export default function ImportExportPanel() {
-  const { data, importCards, exportText } = useAppData();
+  const { data, importCards, exportText, legacyDataAvailable, importFromLegacy } = useAppData();
   const [status, setStatus] = useState<Status | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -32,26 +32,29 @@ export default function ImportExportPanel() {
       return;
     }
 
-    const result = importCards(text);
+    showImportResult(importCards(text));
+    // Allows picking the same file again.
+    input.value = '';
+  }
+
+  function showImportResult(result: ImportOutcome) {
     if (!result.ok) {
       setStatus({
         kind: 'error',
         text: `Import failed: ${result.message} Your cards were not changed.`,
       });
-    } else {
-      const { cardsAdded, duplicatesSkipped } = result.report;
-      const added =
-        cardsAdded === 0
-          ? 'No new cards to import.'
-          : `Imported ${cardsAdded} ${cardsAdded === 1 ? 'card' : 'cards'}.`;
-      const skipped =
-        duplicatesSkipped > 0
-          ? ` Skipped ${duplicatesSkipped} ${duplicatesSkipped === 1 ? 'card' : 'cards'} you already have.`
-          : '';
-      setStatus({ kind: 'success', text: added + skipped });
+      return;
     }
-    // Allows picking the same file again.
-    input.value = '';
+    const { cardsAdded, duplicatesSkipped } = result.report;
+    const added =
+      cardsAdded === 0
+        ? 'No new cards to import.'
+        : `Imported ${cardsAdded} ${cardsAdded === 1 ? 'card' : 'cards'}.`;
+    const skipped =
+      duplicatesSkipped > 0
+        ? ` Skipped ${duplicatesSkipped} ${duplicatesSkipped === 1 ? 'card' : 'cards'} you already have.`
+        : '';
+    setStatus({ kind: 'success', text: added + skipped });
   }
 
   function onExport() {
@@ -89,10 +92,21 @@ export default function ImportExportPanel() {
         >
           Export cards
         </button>
+        {legacyDataAvailable && (
+          <button
+            type="button"
+            className={secondaryButton}
+            onClick={() => showImportResult(importFromLegacy())}
+          >
+            Import cards from the original app
+          </button>
+        )}
       </div>
       <p className="mt-2 text-sm text-gray-500">
         Import accepts exports from this app and from the original Snap Notes. Importing the same
         file twice will not duplicate cards.
+        {legacyDataAvailable &&
+          ' “Import cards from the original app” brings in cards the previous version saved in this browser that are not here yet, such as cards you added there after the switch. Cards you have since edited here are left as they are.'}
       </p>
       {status && (
         <p
