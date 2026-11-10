@@ -45,23 +45,29 @@ export default function ImportExportPanel() {
       });
       return;
     }
-    const { cardsAdded, duplicatesSkipped } = result.report;
+    const { cardsAdded, decksAdded, duplicatesSkipped } = result.report;
     const added =
       cardsAdded === 0
         ? 'No new cards to import.'
         : `Imported ${cardsAdded} ${cardsAdded === 1 ? 'card' : 'cards'}.`;
+    // Decks arrive with the cards, so say when the import brought new ones.
+    const decks =
+      decksAdded > 0 ? ` Added ${decksAdded} new ${decksAdded === 1 ? 'deck' : 'decks'}.` : '';
     const skipped =
       duplicatesSkipped > 0
         ? ` Skipped ${duplicatesSkipped} ${duplicatesSkipped === 1 ? 'card' : 'cards'} you already have.`
         : '';
-    setStatus({ kind: 'success', text: added + skipped });
+    setStatus({ kind: 'success', text: added + decks + skipped });
   }
 
   function onExport() {
     downloadTextFile(exportFileName(), exportText());
     setStatus({
       kind: 'success',
-      text: `Exported ${data.cards.length} ${data.cards.length === 1 ? 'card' : 'cards'}.`,
+      text:
+        data.decks.length > 1
+          ? `Exported ${data.cards.length} ${data.cards.length === 1 ? 'card' : 'cards'} from ${data.decks.length} decks.`
+          : `Exported ${data.cards.length} ${data.cards.length === 1 ? 'card' : 'cards'}.`,
     });
   }
 

@@ -21,8 +21,10 @@ import {
   type MatchState,
 } from '../domain/matchSession';
 import type { Card } from '../domain/types';
-import { useAppData } from './appData';
 import { eligibilitySummary } from './cardText';
+import DeckNotFound from './DeckNotFound';
+import { useDeckScope, withDeck } from './deckScope';
+import DeckScopeNotice from './DeckScopeNotice';
 import EmptyState from './EmptyState';
 import { formatElapsed, spokenDuration } from './formatDuration';
 import ProgressBar from './ProgressBar';
@@ -34,20 +36,33 @@ const focusRing =
   'rounded focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-600';
 
 export default function MatchPage() {
-  const { data } = useAppData();
+  const { deck, deckId, unknownDeck, cards } = useDeckScope();
 
-  if (matchableCards(data.cards).length < MIN_PAIR_COUNT) {
-    const eligible = data.cards.filter(hasBothSides).length;
+  if (unknownDeck) return <DeckNotFound />;
+
+  if (matchableCards(cards).length < MIN_PAIR_COUNT) {
+    const eligible = cards.filter(hasBothSides).length;
     return (
-      <EmptyState pageTitle="Match" heading="Not enough cards to match">
+      <EmptyState
+        pageTitle="Match"
+        heading="Not enough cards to match"
+        addHref={withDeck('/add', deckId)}
+        backHref={deck ? `/decks/${deck.id}` : '/'}
+        backLabel={deck ? 'Back to the deck' : 'Back to home'}
+      >
         Match needs at least two cards with different terms and definitions.{' '}
-        {eligibilitySummary(data.cards.length, eligible)}
+        {eligibilitySummary(cards.length, eligible)}
       </EmptyState>
     );
   }
 
   // The round works on a snapshot of the cards taken when it starts.
-  return <MatchSession cards={data.cards} />;
+  return (
+    <>
+      {deck && <DeckScopeNotice deck={deck} />}
+      <MatchSession cards={cards} />
+    </>
+  );
 }
 
 /** An empty round, only used if the cards change between the check above and the build. */

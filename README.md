@@ -10,6 +10,8 @@ review them in four modes:
 - **Learn**: reveal each definition and say whether you knew it; cards you miss come back until you know them.
 - **Match**: pair terms with their definitions against the clock.
 
+Cards are kept in **decks**, so a subject can be studied on its own.
+
 **Live app:** <https://abbas-4.github.io/Snap-Notes/>
 
 ## Project status
@@ -27,7 +29,7 @@ Milestone 5 is the switch that publishes it at the same address (see [Deployment
 | 3         | Study and Quiz modes (keyboard accessible, no timing races)                          | ✅ Done                                              |
 | 4         | Learn and Match modes                                                                | ✅ Done                                              |
 | 5         | Cutover: deploy the new app at the same URL, migrate data on first load, smoke tests | 🚧 Migration and recovery built; site switch pending |
-| 6         | Decks: create, rename, and study cards by deck                                       | Planned                                              |
+| 6         | Decks: create, rename, delete, move cards between decks, and study one deck          | ✅ Done                                              |
 | 7         | Spaced repetition and saved progress                                                 | Planned                                              |
 | 8+        | Backend (Node, Express, PostgreSQL, Prisma), accounts, sync across devices           | Later                                                |
 
@@ -134,6 +136,37 @@ them over automatically:
 **Before the cutover, export your cards from the live app** (Home → Export) to keep a backup.
 `localStorage` is shared by every project hosted on `abbas-4.github.io`, which is why the new keys
 have a `snapnotes.` prefix.
+
+## Decks
+
+Every card belongs to a deck. Decks have been part of the stored format since the first
+milestone, so collections saved before they had a screen already have one — **My Cards** — and
+**nothing is migrated**: the stored shape is still `schemaVersion: 2` and the storage key is
+unchanged. A build from before this milestone reads data written by it without any loss; it
+simply shows every card in one list again.
+
+- **Decks** in the navigation lists every deck with its card count, and creates new ones.
+- A deck's own page renames it, deletes it, and starts any of the four modes on just that deck.
+- **Deleting a deck never deletes cards.** Its cards move to a deck you choose first, and the
+  last remaining deck cannot be deleted, so a card always has somewhere to live.
+- Deck names are trimmed, cannot be empty, and cannot repeat another deck's name (ignoring case).
+  Imported data is not held to the last rule, so an unusual file still loads.
+- A card's deck is changed on the card's own form, or from the **Deck** control on each row of
+  the card list.
+- Every mode takes an optional deck: `#/study?deck=<id>`, and the same for `#/quiz`, `#/learn`,
+  `#/match` and `#/list`. Without it, the navigation's Study, Quiz, Learn and Match still cover
+  every card, so old links and bookmarks keep working. A link naming a deck that has since been
+  deleted says so instead of quietly showing everything.
+
+Three things worth knowing about decks and import files:
+
+- **Import cards from the original app** always brings a **My Cards** deck with it, because that
+  is where the original app's cards are placed. If you delete that deck and import again, it
+  comes back.
+- Importing a backup does **not** rename a deck you have since renamed. Decks are matched by ID,
+  and the name you have now wins.
+- A card you have moved to another deck can come back as a second copy when you import an older
+  backup, because a card is recognised by its deck, term and definition together.
 
 ## Deployment
 

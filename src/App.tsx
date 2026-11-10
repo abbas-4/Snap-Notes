@@ -1,6 +1,8 @@
 import { Route, Routes } from 'react-router';
 import AppDataProvider from './ui/AppDataProvider';
 import CardFormPage from './ui/CardFormPage';
+import DeckPage from './ui/DeckPage';
+import DecksPage from './ui/DecksPage';
 import HomePage from './ui/HomePage';
 import Layout from './ui/Layout';
 import LearnPage from './ui/LearnPage';
@@ -24,6 +26,8 @@ export default function App({ storage }: AppProps = {}) {
           <Route element={<Layout />}>
             <Route index element={<HomePage />} />
             <Route path="list" element={<ListPage />} />
+            <Route path="decks" element={<DecksPage />} />
+            <Route path="decks/:deckId" element={<DeckPage />} />
             <Route path="study" element={<StudyPage />} />
             <Route path="quiz" element={<QuizPage />} />
             <Route path="learn" element={<LearnPage />} />

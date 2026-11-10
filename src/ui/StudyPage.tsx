@@ -9,29 +9,35 @@ import {
   studyReducer,
 } from '../domain/studySession';
 import type { Card } from '../domain/types';
-import { useAppData } from './appData';
+import DeckNotFound from './DeckNotFound';
+import { useDeckScope, withDeck } from './deckScope';
+import DeckScopeNotice from './DeckScopeNotice';
 import { activatesFocusedControl, isShortcutBlocked } from './keyboard';
 import ProgressBar from './ProgressBar';
 import { primaryButton, secondaryButton } from './styles';
 
 export default function StudyPage() {
-  const { data } = useAppData();
+  const { deck, deckId, unknownDeck, cards } = useDeckScope();
 
-  if (data.cards.length === 0) {
+  if (unknownDeck) return <DeckNotFound />;
+
+  if (cards.length === 0) {
     return (
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Study</h1>
         <div className="mt-6 rounded-xl border border-dashed border-gray-300 bg-white p-6">
           <h2 className="font-semibold">No cards to study</h2>
           <p className="mt-1 text-sm text-gray-600">
-            Add a few cards first, then come back to flip through them.
+            {deck
+              ? `There are no cards in ${deck.name} yet. Add one, then come back to flip through them.`
+              : 'Add a few cards first, then come back to flip through them.'}
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Link to="/add" className={primaryButton}>
+            <Link to={withDeck('/add', deckId)} className={primaryButton}>
               Add a card
             </Link>
-            <Link to="/" className={secondaryButton}>
-              Back to home
+            <Link to={deck ? `/decks/${deck.id}` : '/'} className={secondaryButton}>
+              {deck ? 'Back to the deck' : 'Back to home'}
             </Link>
           </div>
         </div>
@@ -40,7 +46,12 @@ export default function StudyPage() {
   }
 
   // The session works on a snapshot of the cards taken when it starts.
-  return <StudySession cards={data.cards} />;
+  return (
+    <>
+      {deck && <DeckScopeNotice deck={deck} />}
+      <StudySession cards={cards} />
+    </>
+  );
 }
 
 function StudySession({ cards }: { cards: readonly Card[] }) {

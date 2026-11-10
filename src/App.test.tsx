@@ -15,6 +15,7 @@ describe('App', () => {
     const nav = screen.getByRole('navigation', { name: 'Main' });
     expect(nav).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Decks' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Cards' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Study' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Quiz' })).toBeInTheDocument();
@@ -26,6 +27,9 @@ describe('App', () => {
   it('navigates between views through the main navigation', async () => {
     const user = userEvent.setup();
     renderApp({ storage: storageWithCards([makeCard()]) });
+
+    await user.click(screen.getByRole('link', { name: 'Decks' }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Decks' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('link', { name: 'Cards' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Cards' })).toBeInTheDocument();

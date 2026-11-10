@@ -1,7 +1,15 @@
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { makeCard, renderApp, storageWithCards, storedCards } from '../test/renderApp';
+import {
+  makeAppData,
+  makeCard,
+  makeDeck,
+  renderApp,
+  storageWithCards,
+  storageWithData,
+  storedCards,
+} from '../test/renderApp';
 import { MemoryStorage } from '../test/memoryStorage';
 
 afterEach(() => {
@@ -126,5 +134,74 @@ describe('CardFormPage', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Cards' })).toBeInTheDocument();
     expect(storedCards(storage)).toEqual([card]);
     expect(storage.writes).toEqual([]);
+  });
+});
+
+describe('CardFormPage and decks', () => {
+  const myCards = makeDeck({ id: 'default', name: 'My Cards' });
+  const biology = makeDeck({ id: 'biology', name: 'Biology' });
+
+  function twoDecks(cards = [makeCard({ id: 'c1', deckId: 'biology', term: 'Osmosis' })]) {
+    return makeAppData(cards, [myCards, biology]);
+  }
+
+  it('has no deck field when there is only one deck', () => {
+    renderApp({ storage: new MemoryStorage(), route: '/add' });
+
+    expect(screen.queryByLabelText('Deck')).not.toBeInTheDocument();
+  });
+
+  it('adds a card into the deck the link came from', async () => {
+    const user = userEvent.setup();
+    const storage = storageWithData(twoDecks());
+    renderApp({ storage, route: '/add?deck=biology' });
+
+    expect(screen.getByLabelText('Deck')).toHaveValue('biology');
+    await user.type(screen.getByLabelText('Term'), 'Mitosis');
+    await user.click(screen.getByRole('button', { name: 'Add card' }));
+
+    // Back to that deck's cards, with the new one in it.
+    expect(screen.getByRole('link', { name: 'Show all cards' })).toBeInTheDocument();
+    expect(screen.getByText('Mitosis')).toBeInTheDocument();
+    expect(storedCards(storage).find((c) => c.term === 'Mitosis')?.deckId).toBe('biology');
+  });
+
+  it('defaults a new card to the default deck when no deck is named', async () => {
+    const user = userEvent.setup();
+    const storage = storageWithData(twoDecks());
+    renderApp({ storage, route: '/add' });
+
+    expect(screen.getByLabelText('Deck')).toHaveValue('default');
+    await user.type(screen.getByLabelText('Term'), 'Loose');
+    await user.click(screen.getByRole('button', { name: 'Add card' }));
+
+    expect(storedCards(storage).find((c) => c.term === 'Loose')?.deckId).toBe('default');
+  });
+
+  it('moves a card when its deck is the only thing changed', async () => {
+    const user = userEvent.setup();
+    const data = twoDecks();
+    const before = data.cards[0]!;
+    const storage = storageWithData(data);
+    renderApp({ storage, route: '/edit/c1' });
+
+    expect(screen.getByLabelText('Deck')).toHaveValue('biology');
+    await user.selectOptions(screen.getByLabelText('Deck'), 'default');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    const moved = storedCards(storage).find((c) => c.id === 'c1');
+    expect(moved).toEqual({ ...before, deckId: 'default', updatedAt: moved!.updatedAt });
+  });
+
+  it('asks before leaving when only the deck was changed', async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderApp({ storage: storageWithData(twoDecks()), route: '/edit/c1' });
+
+    await user.selectOptions(screen.getByLabelText('Deck'), 'default');
+    await user.click(screen.getByRole('link', { name: 'Home' }));
+
+    expect(confirm).toHaveBeenCalled();
+    expect(screen.getByRole('heading', { level: 1, name: 'Edit card' })).toBeInTheDocument();
   });
 });

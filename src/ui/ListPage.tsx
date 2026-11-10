@@ -3,7 +3,10 @@ import { Link } from 'react-router';
 import type { Card } from '../domain/types';
 import { useAppData } from './appData';
 import { cardLabel } from './cardText';
-import { dangerButton, primaryButton, secondaryButton, textField } from './styles';
+import DeckNotFound from './DeckNotFound';
+import { useDeckScope, withDeck } from './deckScope';
+import DeckScopeNotice from './DeckScopeNotice';
+import { dangerButton, primaryButton, secondaryButton, selectField, textField } from './styles';
 
 type Status = { kind: 'success' | 'error'; text: string };
 
@@ -12,15 +15,19 @@ function matches(card: Card, query: string): boolean {
 }
 
 export default function ListPage() {
-  const { data, deleteCard } = useAppData();
+  const { data, deleteCard, moveCards } = useAppData();
+  const { deck, deckId, unknownDeck, cards: inScope } = useDeckScope();
   const [query, setQuery] = useState('');
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
 
   // Newest first; creation time keeps the order stable across edits.
-  const cards = [...data.cards].sort((a, b) => b.createdAt - a.createdAt);
+  const cards = [...inScope].sort((a, b) => b.createdAt - a.createdAt);
   const normalizedQuery = query.trim().toLowerCase();
   const visible = normalizedQuery ? cards.filter((card) => matches(card, normalizedQuery)) : cards;
+  // With one deck there is nothing to choose between, so the deck controls stay out of the way.
+  const showDecks = data.decks.length > 1;
+  const deckNames = new Map(data.decks.map((d) => [d.id, d.name]));
 
   function onDelete(card: Card) {
     const result = deleteCard(card.id);
@@ -32,20 +39,49 @@ export default function ListPage() {
     );
   }
 
+  function onMove(card: Card, toDeckId: string) {
+    const result = moveCards([card.id], toDeckId);
+    setStatus(
+      result.ok
+        ? {
+            kind: 'success',
+            text: `Moved “${cardLabel(card)}” to “${deckNames.get(toDeckId) ?? 'another deck'}”.`,
+          }
+        : { kind: 'error', text: `The card could not be moved: ${result.message}` },
+    );
+  }
+
+  if (unknownDeck) return <DeckNotFound />;
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight">Cards</h1>
-        <Link to="/add" className={primaryButton}>
+        <Link to={withDeck('/add', deckId)} className={primaryButton}>
           Add a card
         </Link>
       </div>
 
+      {deck && (
+        <div className="mt-3">
+          <DeckScopeNotice deck={deck}>
+            <Link
+              to="/list"
+              className="font-medium underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+            >
+              Show all cards
+            </Link>
+          </DeckScopeNotice>
+        </div>
+      )}
+
       {cards.length === 0 ? (
         <div className="mt-6 rounded-xl border border-dashed border-gray-300 bg-white p-6">
-          <h2 className="font-semibold">No cards yet</h2>
+          <h2 className="font-semibold">{deck ? 'No cards in this deck yet' : 'No cards yet'}</h2>
           <p className="mt-1 text-sm text-gray-600">
-            Add your first card, or import a backup from the home page.
+            {deck
+              ? 'Add a card to this deck, or move one here from another deck.'
+              : 'Add your first card, or import a backup from the home page.'}
           </p>
         </div>
       ) : (
@@ -138,6 +174,29 @@ export default function ListPage() {
                       </button>
                     </div>
                   </div>
+                  {showDecks && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <label
+                        htmlFor={`card-deck-${card.id}`}
+                        className="text-sm font-medium text-gray-700"
+                      >
+                        Deck
+                      </label>
+                      <select
+                        id={`card-deck-${card.id}`}
+                        className={`${selectField} py-1.5 text-sm`}
+                        aria-label={`Deck for ${cardLabel(card)}`}
+                        value={card.deckId}
+                        onChange={(event) => onMove(card, event.target.value)}
+                      >
+                        {data.decks.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   {confirmingId === card.id && (
                     <div
                       role="alertdialog"

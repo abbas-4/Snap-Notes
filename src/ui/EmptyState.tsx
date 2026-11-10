@@ -8,10 +8,22 @@ interface EmptyStateProps {
   /** Why the mode can't start, such as "No cards to learn". */
   heading: string;
   children: ReactNode;
+  /** Where "Add a card" goes. Scoped to a deck, it carries the deck with it. */
+  addHref?: string;
+  /** Where the second link goes, and what it says. */
+  backHref?: string;
+  backLabel?: string;
 }
 
 /** Shown in place of a study mode when there aren't enough usable cards. */
-export default function EmptyState({ pageTitle, heading, children }: EmptyStateProps) {
+export default function EmptyState({
+  pageTitle,
+  heading,
+  children,
+  addHref = '/add',
+  backHref = '/',
+  backLabel = 'Back to home',
+}: EmptyStateProps) {
   return (
     <div>
       <h1 className="text-2xl font-bold tracking-tight">{pageTitle}</h1>
@@ -19,11 +31,11 @@ export default function EmptyState({ pageTitle, heading, children }: EmptyStateP
         <h2 className="font-semibold">{heading}</h2>
         <p className="mt-1 text-sm text-gray-600">{children}</p>
         <div className="mt-4 flex flex-wrap gap-3">
-          <Link to="/add" className={primaryButton}>
+          <Link to={addHref} className={primaryButton}>
             Add a card
           </Link>
-          <Link to="/" className={secondaryButton}>
-            Back to home
+          <Link to={backHref} className={secondaryButton}>
+            {backLabel}
           </Link>
         </div>
       </div>

@@ -39,6 +39,9 @@ export default function HomePage() {
               <Link to="/list" className={secondaryButton}>
                 Browse all cards
               </Link>
+              <Link to="/decks" className={secondaryButton}>
+                Manage decks
+              </Link>
             </div>
           </>
         )}

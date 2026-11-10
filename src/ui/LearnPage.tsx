@@ -11,8 +11,10 @@ import {
   type LearnState,
 } from '../domain/learnSession';
 import type { Card } from '../domain/types';
-import { useAppData } from './appData';
 import { eligibilitySummary } from './cardText';
+import DeckNotFound from './DeckNotFound';
+import { useDeckScope, withDeck } from './deckScope';
+import DeckScopeNotice from './DeckScopeNotice';
 import EmptyState from './EmptyState';
 import { activatesFocusedControl, isShortcutBlocked } from './keyboard';
 import ProgressBar from './ProgressBar';
@@ -23,20 +25,34 @@ const focusRing =
   'rounded focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-600';
 
 export default function LearnPage() {
-  const { data } = useAppData();
-  const eligible = data.cards.filter(isLearnEligible).length;
+  const { deck, deckId, unknownDeck, cards } = useDeckScope();
+
+  if (unknownDeck) return <DeckNotFound />;
+
+  const eligible = cards.filter(isLearnEligible).length;
 
   if (eligible === 0) {
     return (
-      <EmptyState pageTitle="Learn" heading="No cards to learn">
+      <EmptyState
+        pageTitle="Learn"
+        heading="No cards to learn"
+        addHref={withDeck('/add', deckId)}
+        backHref={deck ? `/decks/${deck.id}` : '/'}
+        backLabel={deck ? 'Back to the deck' : 'Back to home'}
+      >
         Learn needs cards with both a term and a definition.{' '}
-        {eligibilitySummary(data.cards.length, eligible)}
+        {eligibilitySummary(cards.length, eligible)}
       </EmptyState>
     );
   }
 
   // The session works on a snapshot of the cards taken when it starts.
-  return <LearnSession cards={data.cards} />;
+  return (
+    <>
+      {deck && <DeckScopeNotice deck={deck} />}
+      <LearnSession cards={cards} />
+    </>
+  );
 }
 
 function LearnSession({ cards }: { cards: readonly Card[] }) {
