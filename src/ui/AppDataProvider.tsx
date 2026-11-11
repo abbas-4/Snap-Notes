@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createDefaultDeck, createEmptyAppData, DEFAULT_DECK_ID } from '../domain/appData';
+import * as deckOps from '../domain/deckOps';
 import { createId } from '../domain/ids';
 import type { AppData, Card } from '../domain/types';
 import {
@@ -163,7 +164,13 @@ export default function AppDataProvider({ storage, children }: AppDataProviderPr
     (input: CardInput): WriteResult => {
       const now = Date.now();
       let decks = data.decks;
-      let deck = decks.find((d) => d.id === DEFAULT_DECK_ID) ?? decks[0];
+      let deck =
+        input.deckId === undefined
+          ? (decks.find((d) => d.id === DEFAULT_DECK_ID) ?? decks[0])
+          : decks.find((d) => d.id === input.deckId);
+      if (!deck && input.deckId !== undefined) {
+        return { ok: false, message: 'That deck no longer exists.' };
+      }
       if (!deck) {
         deck = createDefaultDeck(now);
         decks = [...decks, deck];
@@ -185,13 +192,21 @@ export default function AppDataProvider({ storage, children }: AppDataProviderPr
     (id: string, input: CardInput): WriteResult => {
       const existing = data.cards.find((card) => card.id === id);
       if (!existing) return { ok: false, message: 'This card no longer exists.' };
-      if (existing.term === input.term && existing.definition === input.definition) {
+      const deckId = input.deckId ?? existing.deckId;
+      if (!data.decks.some((deck) => deck.id === deckId)) {
+        return { ok: false, message: 'That deck no longer exists.' };
+      }
+      if (
+        existing.term === input.term &&
+        existing.definition === input.definition &&
+        existing.deckId === deckId
+      ) {
         return { ok: true };
       }
       const updatedAt = Math.max(Date.now(), existing.createdAt);
       const cards = data.cards.map((card) =>
         card.id === id
-          ? { ...card, term: input.term, definition: input.definition, updatedAt }
+          ? { ...card, term: input.term, definition: input.definition, deckId, updatedAt }
           : card,
       );
       return commit({ ...data, cards });
@@ -208,6 +223,36 @@ export default function AppDataProvider({ storage, children }: AppDataProviderPr
       return commit({ ...data, cards });
     },
     [commit, data],
+  );
+
+  // Deck operations are pure functions over the whole collection; a refusal is
+  // already shaped like a failed write, so it passes straight through.
+  const applyDeckOp = useCallback(
+    (result: deckOps.DeckOpResult): WriteResult => (result.ok ? commit(result.data) : result),
+    [commit],
+  );
+
+  const createDeck = useCallback(
+    (name: string): WriteResult => applyDeckOp(deckOps.createDeck(data, name)),
+    [applyDeckOp, data],
+  );
+
+  const renameDeck = useCallback(
+    (deckId: string, name: string): WriteResult =>
+      applyDeckOp(deckOps.renameDeck(data, deckId, name)),
+    [applyDeckOp, data],
+  );
+
+  const deleteDeck = useCallback(
+    (deckId: string, moveCardsTo: string): WriteResult =>
+      applyDeckOp(deckOps.deleteDeck(data, deckId, moveCardsTo)),
+    [applyDeckOp, data],
+  );
+
+  const moveCards = useCallback(
+    (cardIds: readonly string[], toDeckId: string): WriteResult =>
+      applyDeckOp(deckOps.moveCards(data, cardIds, toDeckId)),
+    [applyDeckOp, data],
   );
 
   const importCards = useCallback(
@@ -310,6 +355,10 @@ export default function AppDataProvider({ storage, children }: AppDataProviderPr
       addCard,
       updateCard,
       deleteCard,
+      createDeck,
+      renameDeck,
+      deleteDeck,
+      moveCards,
       importCards,
       exportText,
     }),
@@ -324,6 +373,10 @@ export default function AppDataProvider({ storage, children }: AppDataProviderPr
       addCard,
       updateCard,
       deleteCard,
+      createDeck,
+      renameDeck,
+      deleteDeck,
+      moveCards,
       importCards,
       exportText,
     ],

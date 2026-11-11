@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
+import { DEFAULT_DECK_ID } from '../domain/appData';
 import type { Card } from '../domain/types';
 import { useAppData } from './appData';
-import { primaryButton, secondaryButton, textField } from './styles';
+import { useDeckScope, withDeck } from './deckScope';
+import { primaryButton, secondaryButton, selectField, textField } from './styles';
 import { useUnsavedChanges } from './unsavedChanges';
 
 interface CardFormPageProps {
@@ -12,6 +14,7 @@ interface CardFormPageProps {
 export default function CardFormPage({ mode }: CardFormPageProps) {
   const { cardId } = useParams();
   const { data } = useAppData();
+  const { deck: scopedDeck } = useDeckScope();
   const card = mode === 'edit' ? data.cards.find((c) => c.id === cardId) : undefined;
 
   if (mode === 'edit' && !card) {
@@ -28,21 +31,50 @@ export default function CardFormPage({ mode }: CardFormPageProps) {
     );
   }
 
+  // A new card goes to the deck the link came from, else the default deck.
+  const initialDeckId =
+    card?.deckId ??
+    scopedDeck?.id ??
+    data.decks.find((d) => d.id === DEFAULT_DECK_ID)?.id ??
+    data.decks[0]?.id ??
+    '';
+
   // Keyed so switching between cards resets the form state.
-  return <CardForm key={card?.id ?? 'new'} card={card} />;
+  return (
+    <CardForm
+      key={card?.id ?? 'new'}
+      card={card}
+      initialDeckId={initialDeckId}
+      scoped={!!scopedDeck}
+    />
+  );
 }
 
-function CardForm({ card }: { card: Card | undefined }) {
-  const { addCard, updateCard } = useAppData();
+interface CardFormProps {
+  card: Card | undefined;
+  initialDeckId: string;
+  /** Whether the page was opened from a deck, so saving returns to that deck's cards. */
+  scoped: boolean;
+}
+
+function CardForm({ card, initialDeckId, scoped }: CardFormProps) {
+  const { data, addCard, updateCard } = useAppData();
   const navigate = useNavigate();
   const { setDirty, confirmLeave } = useUnsavedChanges();
 
   const [term, setTerm] = useState(card?.term ?? '');
   const [definition, setDefinition] = useState(card?.definition ?? '');
+  const [deckId, setDeckId] = useState(initialDeckId);
   const [error, setError] = useState<string | null>(null);
   const termRef = useRef<HTMLInputElement>(null);
 
-  const dirty = term !== (card?.term ?? '') || definition !== (card?.definition ?? '');
+  // With one deck there is nothing to choose, so the field stays out of the way.
+  const showDecks = data.decks.length > 1;
+
+  const dirty =
+    term !== (card?.term ?? '') ||
+    definition !== (card?.definition ?? '') ||
+    deckId !== initialDeckId;
 
   useEffect(() => {
     setDirty(dirty);
@@ -59,7 +91,7 @@ function CardForm({ card }: { card: Card | undefined }) {
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
-    const input = { term: term.trim(), definition: definition.trim() };
+    const input = { term: term.trim(), definition: definition.trim(), deckId };
     if (input.term === '' && input.definition === '') {
       setError('A card needs at least a term or a definition.');
       termRef.current?.focus();
@@ -71,7 +103,8 @@ function CardForm({ card }: { card: Card | undefined }) {
       return;
     }
     setDirty(false);
-    navigate('/list');
+    // Coming from a deck, go back to that deck's cards — the one the card is in now.
+    navigate(scoped ? withDeck('/list', deckId) : '/list');
   }
 
   function onCancel() {
@@ -131,6 +164,32 @@ function CardForm({ card }: { card: Card | undefined }) {
             The back of the card — the answer or explanation.
           </p>
         </div>
+        {showDecks && (
+          <div>
+            <label htmlFor="card-deck" className="block text-sm font-medium text-gray-700">
+              Deck
+            </label>
+            <select
+              id="card-deck"
+              className={`${selectField} mt-1`}
+              value={deckId}
+              onChange={(event) => {
+                setDeckId(event.target.value);
+                setError(null);
+              }}
+              aria-describedby="card-deck-hint"
+            >
+              {data.decks.map((deck) => (
+                <option key={deck.id} value={deck.id}>
+                  {deck.name}
+                </option>
+              ))}
+            </select>
+            <p id="card-deck-hint" className="mt-1 text-sm text-gray-500">
+              {card ? 'Changing this moves the card to another deck.' : 'Where this card is kept.'}
+            </p>
+          </div>
+        )}
         <div className="flex flex-wrap gap-3">
           <button type="submit" className={primaryButton}>
             {card ? 'Save changes' : 'Add card'}

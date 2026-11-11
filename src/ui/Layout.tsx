@@ -41,6 +41,11 @@ export default function Layout() {
                 </NavLink>
               </li>
               <li>
+                <NavLink to="/decks" onClick={guardNavigation} className={navLinkClass}>
+                  Decks
+                </NavLink>
+              </li>
+              <li>
                 <NavLink to="/list" onClick={guardNavigation} className={navLinkClass}>
                   Cards
                 </NavLink>

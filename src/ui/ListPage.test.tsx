@@ -1,7 +1,15 @@
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
-import { makeCard, renderApp, storageWithCards, storedCards } from '../test/renderApp';
+import {
+  makeAppData,
+  makeCard,
+  makeDeck,
+  renderApp,
+  storageWithCards,
+  storageWithData,
+  storedCards,
+} from '../test/renderApp';
 
 describe('ListPage', () => {
   it('shows every card with its term and definition', () => {
@@ -93,5 +101,72 @@ describe('ListPage', () => {
       'href',
       `/edit/${card.id}`,
     );
+  });
+});
+
+describe('ListPage scoped to a deck', () => {
+  const myCards = makeDeck({ id: 'default', name: 'My Cards' });
+  const biology = makeDeck({ id: 'biology', name: 'Biology' });
+
+  function twoDecks() {
+    return makeAppData(
+      [
+        makeCard({ id: 'c1', deckId: 'default', term: 'Everywhere' }),
+        makeCard({ id: 'c2', deckId: 'biology', term: 'Osmosis' }),
+      ],
+      [myCards, biology],
+    );
+  }
+
+  it('shows only that deck’s cards, and offers a way back to all of them', () => {
+    renderApp({ storage: storageWithData(twoDecks()), route: '/list?deck=biology' });
+
+    expect(screen.getByText('Osmosis')).toBeInTheDocument();
+    expect(screen.queryByText('Everywhere')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('1 card');
+    expect(screen.getByRole('link', { name: 'Show all cards' })).toHaveAttribute('href', '/list');
+  });
+
+  it('shows every card when no deck is named', () => {
+    renderApp({ storage: storageWithData(twoDecks()), route: '/list' });
+
+    expect(screen.getByText('Everywhere')).toBeInTheDocument();
+    expect(screen.getByText('Osmosis')).toBeInTheDocument();
+  });
+
+  it('says so when the deck no longer exists', () => {
+    renderApp({ storage: storageWithData(twoDecks()), route: '/list?deck=gone' });
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Deck not found' })).toBeInTheDocument();
+    expect(screen.queryByText('Osmosis')).not.toBeInTheDocument();
+  });
+
+  it('has its own empty state for a deck with no cards', () => {
+    const data = makeAppData([makeCard({ deckId: 'default' })], [myCards, biology]);
+    renderApp({ storage: storageWithData(data), route: '/list?deck=biology' });
+
+    expect(screen.getByRole('heading', { name: 'No cards in this deck yet' })).toBeInTheDocument();
+  });
+
+  it('moves a card to another deck from the list', async () => {
+    const user = userEvent.setup();
+    const data = twoDecks();
+    const before = data.cards[1]!;
+    const storage = storageWithData(data);
+    renderApp({ storage, route: '/list' });
+
+    await user.selectOptions(screen.getByLabelText('Deck for Osmosis'), 'default');
+
+    expect(screen.getByText('Moved “Osmosis” to “My Cards”.')).toBeInTheDocument();
+    const moved = storedCards(storage).find((c) => c.id === 'c2');
+    // Only the deck changed; the text and creation time are untouched.
+    expect(moved).toEqual({ ...before, deckId: 'default', updatedAt: moved!.updatedAt });
+    expect(moved!.updatedAt).toBeGreaterThanOrEqual(before.createdAt);
+  });
+
+  it('leaves the deck controls out when there is only one deck', () => {
+    renderApp({ storage: storageWithCards([makeCard({ term: 'Alone' })]), route: '/list' });
+
+    expect(screen.queryByLabelText('Deck for Alone')).not.toBeInTheDocument();
   });
 });

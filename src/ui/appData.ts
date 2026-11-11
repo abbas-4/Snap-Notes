@@ -10,6 +10,8 @@ export type ImportOutcome = { ok: true; report: MergeReport } | { ok: false; mes
 export interface CardInput {
   term: string;
   definition: string;
+  /** Which deck the card belongs in. Left out, a new card goes to the default deck. */
+  deckId?: string;
 }
 
 /**
@@ -32,6 +34,16 @@ export interface AppDataValue {
   addCard(input: CardInput): WriteResult;
   updateCard(id: string, input: CardInput): WriteResult;
   deleteCard(id: string): WriteResult;
+  /** Adds a deck. The name is trimmed, and must be non-empty and not already in use. */
+  createDeck(name: string): WriteResult;
+  renameDeck(deckId: string, name: string): WriteResult;
+  /**
+   * Removes a deck after moving every card it holds into `moveCardsTo`.
+   * Deleting a deck never deletes cards, and the last deck cannot be deleted.
+   */
+  deleteDeck(deckId: string, moveCardsTo: string): WriteResult;
+  /** Moves cards into another deck, leaving everything else about them alone. */
+  moveCards(cardIds: readonly string[], toDeckId: string): WriteResult;
   /** Parses and validates an export file, then merges it into the current data. */
   importCards(text: string): ImportOutcome;
   /** The current data serialized in the versioned export format. */

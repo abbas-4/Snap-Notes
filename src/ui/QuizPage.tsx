@@ -16,15 +16,25 @@ import {
   type QuizState,
 } from '../domain/quizSession';
 import type { Card } from '../domain/types';
-import { useAppData } from './appData';
+import DeckNotFound from './DeckNotFound';
+import { useDeckScope, withDeck } from './deckScope';
+import DeckScopeNotice from './DeckScopeNotice';
 import { activatesFocusedControl, isShortcutBlocked } from './keyboard';
 import ProgressBar from './ProgressBar';
 import { primaryButton, secondaryButton } from './styles';
 
 export default function QuizPage() {
-  const { data } = useAppData();
+  const { deck, unknownDeck, cards } = useDeckScope();
+
+  if (unknownDeck) return <DeckNotFound />;
+
   // The quiz works on a snapshot of the cards taken when it starts.
-  return <QuizSession cards={data.cards} />;
+  return (
+    <>
+      {deck && <DeckScopeNotice deck={deck} />}
+      <QuizSession cards={cards} />
+    </>
+  );
 }
 
 function QuizSession({ cards }: { cards: readonly Card[] }) {
@@ -342,6 +352,7 @@ function QuizResults({ state, headingRef, onRestart }: QuizResultsProps) {
 }
 
 function NotEnoughCards({ cards }: { cards: readonly Card[] }) {
+  const { deck, deckId } = useDeckScope();
   const eligible = cards.filter(isQuizEligible).length;
   const left = cards.length - eligible;
 
@@ -360,11 +371,11 @@ function NotEnoughCards({ cards }: { cards: readonly Card[] }) {
             ` ${left} ${left === 1 ? 'card is' : 'cards are'} missing a term or definition and can’t be quizzed.`}
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
-          <Link to="/add" className={primaryButton}>
+          <Link to={withDeck('/add', deckId)} className={primaryButton}>
             Add a card
           </Link>
-          <Link to="/" className={secondaryButton}>
-            Back to home
+          <Link to={deck ? `/decks/${deck.id}` : '/'} className={secondaryButton}>
+            {deck ? 'Back to the deck' : 'Back to home'}
           </Link>
         </div>
       </div>

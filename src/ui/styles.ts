@@ -17,3 +17,6 @@ export const dangerButton = `${buttonBase} border border-red-200 bg-white text-r
 
 export const textField =
   'block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-indigo-500 focus:outline-2 focus:outline-indigo-500 aria-invalid:border-red-400';
+
+export const selectField =
+  'block rounded-lg border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-2 focus:outline-indigo-500';
