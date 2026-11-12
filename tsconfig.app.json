@@ -20,5 +20,6 @@
     "noUncheckedIndexedAccess": true,
     "erasableSyntaxOnly": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/**/*.integration.test.ts", "src/test/integration.ts"]
 }

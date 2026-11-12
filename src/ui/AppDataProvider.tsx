@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createDefaultDeck, createEmptyAppData, DEFAULT_DECK_ID } from '../domain/appData';
 import * as deckOps from '../domain/deckOps';
 import { createId } from '../domain/ids';
@@ -106,6 +106,14 @@ export default function AppDataProvider({ storage, children }: AppDataProviderPr
   const [data, setData] = useState<AppData>(() =>
     loaded.ok ? loaded.data : createEmptyAppData(Date.now()),
   );
+  // The latest data, updated the moment a write lands. Every operation reads
+  // it at call time, so a change saved between renders (by sync, for
+  // example) is built upon rather than overwritten by an older copy.
+  const dataRef = useRef(data);
+  const replaceState = useCallback((next: AppData) => {
+    dataRef.current = next;
+    setData(next);
+  }, []);
   // Read back from storage rather than taken from `loaded`, so the notice
   // survives a refresh and React's development-mode double call of initializers.
   // When the record could not be written, or the migrated cards are not saved
@@ -154,14 +162,30 @@ export default function AppDataProvider({ storage, children }: AppDataProviderPr
           setLoaded({ ok: true, data: next, source: 'stored', persisted: true });
         }
       }
-      setData(next);
+      replaceState(next);
       return { ok: true };
     },
-    [canPersist, migrationRecord, resolved, unsavedMigration],
+    [canPersist, migrationRecord, replaceState, resolved, unsavedMigration],
   );
+
+  // Another tab saved cards: show them here too, so this tab never writes an
+  // older copy over them.
+  useEffect(() => {
+    if (!canPersist || unsavedMigration) return;
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== STORAGE_KEY || event.storageArea !== resolved) return;
+      const reloaded = loadAppData({ storage: resolved });
+      if (reloaded.ok && reloaded.source === 'stored') replaceState(reloaded.data);
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [canPersist, replaceState, resolved, unsavedMigration]);
+
+  const getData = useCallback(() => dataRef.current, []);
 
   const addCard = useCallback(
     (input: CardInput): WriteResult => {
+      const data = dataRef.current;
       const now = Date.now();
       let decks = data.decks;
       let deck =
@@ -185,11 +209,12 @@ export default function AppDataProvider({ storage, children }: AppDataProviderPr
       };
       return commit({ ...data, decks, cards: [...data.cards, card] });
     },
-    [commit, data],
+    [commit],
   );
 
   const updateCard = useCallback(
     (id: string, input: CardInput): WriteResult => {
+      const data = dataRef.current;
       const existing = data.cards.find((card) => card.id === id);
       if (!existing) return { ok: false, message: 'This card no longer exists.' };
       const deckId = input.deckId ?? existing.deckId;
@@ -211,18 +236,19 @@ export default function AppDataProvider({ storage, children }: AppDataProviderPr
       );
       return commit({ ...data, cards });
     },
-    [commit, data],
+    [commit],
   );
 
   const deleteCard = useCallback(
     (id: string): WriteResult => {
+      const data = dataRef.current;
       const cards = data.cards.filter((card) => card.id !== id);
       if (cards.length === data.cards.length) {
         return { ok: false, message: 'This card no longer exists.' };
       }
       return commit({ ...data, cards });
     },
-    [commit, data],
+    [commit],
   );
 
   // Deck operations are pure functions over the whole collection; a refusal is
@@ -233,30 +259,31 @@ export default function AppDataProvider({ storage, children }: AppDataProviderPr
   );
 
   const createDeck = useCallback(
-    (name: string): WriteResult => applyDeckOp(deckOps.createDeck(data, name)),
-    [applyDeckOp, data],
+    (name: string): WriteResult => applyDeckOp(deckOps.createDeck(dataRef.current, name)),
+    [applyDeckOp],
   );
 
   const renameDeck = useCallback(
     (deckId: string, name: string): WriteResult =>
-      applyDeckOp(deckOps.renameDeck(data, deckId, name)),
-    [applyDeckOp, data],
+      applyDeckOp(deckOps.renameDeck(dataRef.current, deckId, name)),
+    [applyDeckOp],
   );
 
   const deleteDeck = useCallback(
     (deckId: string, moveCardsTo: string): WriteResult =>
-      applyDeckOp(deckOps.deleteDeck(data, deckId, moveCardsTo)),
-    [applyDeckOp, data],
+      applyDeckOp(deckOps.deleteDeck(dataRef.current, deckId, moveCardsTo)),
+    [applyDeckOp],
   );
 
   const moveCards = useCallback(
     (cardIds: readonly string[], toDeckId: string): WriteResult =>
-      applyDeckOp(deckOps.moveCards(data, cardIds, toDeckId)),
-    [applyDeckOp, data],
+      applyDeckOp(deckOps.moveCards(dataRef.current, cardIds, toDeckId)),
+    [applyDeckOp],
   );
 
   const importCards = useCallback(
     (text: string): ImportOutcome => {
+      const data = dataRef.current;
       const parsed = parseImportFile(text);
       if (!parsed.ok) return { ok: false, message: parsed.message };
       // A file from the original app has no stable IDs, so it is matched by content first.
@@ -270,12 +297,13 @@ export default function AppDataProvider({ storage, children }: AppDataProviderPr
       merged.report.duplicatesSkipped += incoming.skipped;
       return { ok: true, report: merged.report };
     },
-    [commit, data],
+    [commit],
   );
 
   const legacyRawData = useCallback(() => readLegacyRaw(resolved), [resolved]);
 
   const importFromLegacy = useCallback((): ImportOutcome => {
+    const data = dataRef.current;
     const raw = readLegacyRaw(resolved);
     if (raw === null) {
       return { ok: false, message: 'No data from the original app was found in this browser.' };
@@ -290,7 +318,7 @@ export default function AppDataProvider({ storage, children }: AppDataProviderPr
     if (!committed.ok) return committed;
     merged.report.duplicatesSkipped += incoming.skipped;
     return { ok: true, report: merged.report };
-  }, [commit, data, resolved]);
+  }, [commit, resolved]);
 
   const exportText = useCallback(() => serializeExport(data), [data]);
 
@@ -312,11 +340,11 @@ export default function AppDataProvider({ storage, children }: AppDataProviderPr
       }
       const reloaded = loadAppData({ storage: resolved });
       if (!reloaded.ok) return { ok: false, message: reloaded.message };
-      setData(reloaded.data);
+      replaceState(reloaded.data);
       setLoaded(reloaded);
       return { ok: true };
     },
-    [resolved],
+    [replaceState, resolved],
   );
 
   const restoreFromFile = useCallback(
@@ -361,6 +389,8 @@ export default function AppDataProvider({ storage, children }: AppDataProviderPr
       moveCards,
       importCards,
       exportText,
+      getData,
+      replaceData: commit,
     }),
     [
       data,
@@ -379,6 +409,8 @@ export default function AppDataProvider({ storage, children }: AppDataProviderPr
       moveCards,
       importCards,
       exportText,
+      getData,
+      commit,
     ],
   );
 

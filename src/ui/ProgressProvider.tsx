@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { gradeProgress, type ReviewGrade } from '../domain/srs';
 import type { Card, Timestamp } from '../domain/types';
 import { resolveStorage } from '../storage/localStore';
 import {
   loadProgress,
+  PROGRESS_STORAGE_KEY,
   recordActivity,
   recordsById,
   reconcileProgress,
@@ -30,11 +31,18 @@ interface ProgressProviderProps {
  * can never put cards or decks at risk.
  */
 export default function ProgressProvider({ storage, children }: ProgressProviderProps) {
-  const { data } = useAppData();
+  const { data, getData } = useAppData();
   const [resolved] = useState(() => resolveStorage(storage));
   const [loaded] = useState(() => loadProgress(resolved));
   const [progress, setProgress] = useState<ProgressData>(() => loaded.data);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // The latest progress, updated the moment a write lands, so operations made
+  // between renders (a sync, a quick second answer) build on each other.
+  const progressRef = useRef(progress);
+  const replaceState = useCallback((next: ProgressData) => {
+    progressRef.current = next;
+    setProgress(next);
+  }, []);
 
   // Saved progress written by a newer version is left exactly as it is: this
   // version cannot read it, so it must not write over it either.
@@ -56,11 +64,30 @@ export default function ProgressProvider({ storage, children }: ProgressProvider
         }
         setSaveError(null);
       }
-      setProgress(next);
+      replaceState(next);
       return { ok: true };
     },
-    [blocked, canSave, resolved],
+    [blocked, canSave, replaceState, resolved],
   );
+
+  /** The latest progress, kept in step with the latest cards. */
+  const getProgress = useCallback((): ProgressData => {
+    const latest = progressRef.current;
+    const reconciledNow = reconcileProgress(latest.records, getData());
+    return reconciledNow.changed ? { ...latest, records: reconciledNow.records } : latest;
+  }, [getData]);
+
+  // Another tab saved progress: take it, so this tab never writes over it.
+  useEffect(() => {
+    if (!canSave) return;
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== PROGRESS_STORAGE_KEY || event.storageArea !== resolved) return;
+      const reloaded = loadProgress(resolved);
+      if (reloaded.ok) replaceState(reloaded.data);
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [canSave, replaceState, resolved]);
 
   // Cards can be deleted, moved between decks or replaced by an import at any
   // time. Records follow them, and a record left without a card is dropped.
@@ -85,48 +112,55 @@ export default function ProgressProvider({ storage, children }: ProgressProvider
 
   const gradeCard = useCallback(
     (card: Card, grade: ReviewGrade, now: Timestamp = Date.now()): WriteResult => {
-      const updated = gradeProgress(records.get(card.id), grade, {
+      const latest = getProgress();
+      const previous = latest.records.find((record) => record.cardId === card.id);
+      const updated = gradeProgress(previous, grade, {
         cardId: card.id,
         deckId: card.deckId,
         now,
       });
-      const others = current.records.filter((record) => record.cardId !== card.id);
+      const others = latest.records.filter((record) => record.cardId !== card.id);
       return commit({
-        ...current,
+        ...latest,
         records: [...others, updated],
-        history: recordActivity(current.history, now, grade !== 'again'),
+        history: recordActivity(latest.history, now, grade !== 'again'),
       });
     },
-    [commit, current, records],
+    [commit, getProgress],
   );
 
   const resetCard = useCallback(
     (cardId: string): WriteResult => {
-      if (!records.has(cardId)) return { ok: true };
-      const kept = current.records.filter((record) => record.cardId !== cardId);
-      return commit({ ...current, records: kept });
+      const latest = getProgress();
+      if (!latest.records.some((record) => record.cardId === cardId)) return { ok: true };
+      const kept = latest.records.filter((record) => record.cardId !== cardId);
+      return commit({ ...latest, records: kept });
     },
-    [commit, current, records],
+    [commit, getProgress],
   );
 
   const resetDeck = useCallback(
     (deckId: string): WriteResult => {
+      const latest = getProgress();
       // The cards decide which records belong to the deck; a record only
       // remembers a deck so it can be read on its own.
       const inDeck = new Set(
-        data.cards.filter((card) => card.deckId === deckId).map((card) => card.id),
+        getData()
+          .cards.filter((card) => card.deckId === deckId)
+          .map((card) => card.id),
       );
-      const kept = current.records.filter((record) => !inDeck.has(record.cardId));
-      if (kept.length === current.records.length) return { ok: true };
-      return commit({ ...current, records: kept });
+      const kept = latest.records.filter((record) => !inDeck.has(record.cardId));
+      if (kept.length === latest.records.length) return { ok: true };
+      return commit({ ...latest, records: kept });
     },
-    [commit, current, data.cards],
+    [commit, getData, getProgress],
   );
 
   const resetAll = useCallback((): WriteResult => {
-    if (current.records.length === 0 && current.history.length === 0) return { ok: true };
-    return commit({ ...current, records: [], history: [] });
-  }, [commit, current]);
+    const latest = getProgress();
+    if (latest.records.length === 0 && latest.history.length === 0) return { ok: true };
+    return commit({ ...latest, records: [], history: [] });
+  }, [commit, getProgress]);
 
   let progressWarning: string | null = null;
   if (blocked) {
@@ -150,8 +184,21 @@ export default function ProgressProvider({ storage, children }: ProgressProvider
       resetCard,
       resetDeck,
       resetAll,
+      snapshot: current,
+      getProgress,
+      replaceProgress: commit,
     }),
-    [records, current.history, progressWarning, gradeCard, resetCard, resetDeck, resetAll],
+    [
+      records,
+      current,
+      progressWarning,
+      gradeCard,
+      resetCard,
+      resetDeck,
+      resetAll,
+      getProgress,
+      commit,
+    ],
   );
 
   return <ProgressContext.Provider value={value}>{children}</ProgressContext.Provider>;

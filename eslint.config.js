@@ -24,5 +24,10 @@ export default defineConfig([
     ],
     languageOptions: { ecmaVersion: 2023, globals: globals.browser },
   },
+  {
+    // Integration tests and their helpers run in Node, against a real Supabase stack.
+    files: ['src/**/*.integration.test.ts', 'src/test/integration.ts'],
+    languageOptions: { globals: { ...globals.browser, ...globals.node } },
+  },
   prettier,
 ]);

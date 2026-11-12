@@ -45,7 +45,15 @@ jobs:
       - run: npm test
 
       # Type-checks and writes the production build to dist/.
+      #
+      # Accounts and sync are switched on by two repository *variables* (Settings → Secrets and
+      # variables → Actions → Variables), not secrets: both are public by design and end up in the
+      # JavaScript every visitor downloads. Without them the build is the local-only app. Never
+      # put a secret or service_role key here; the app refuses to use one.
       - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
 
       # Proven in both modes, so the cutover never deploys a build that nobody has checked.
       - name: Verify the React build is deployable

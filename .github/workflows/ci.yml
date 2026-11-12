@@ -29,3 +29,29 @@ jobs:
 
       - name: Check the legacy app is unchanged
         run: npm run verify:legacy
+
+  integration:
+    name: Integration tests against a local Supabase stack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # Postgres with the migrations in supabase/migrations applied, the auth server, the API
+      # gateway and the Mailpit inbox that catches its emails. Docker is preinstalled on the runner.
+      - name: Start Supabase
+        run: npm run db:start
+
+      # Accounts, password recovery, sync between two devices, conflicts, and Row Level Security,
+      # all against the real services. Uses the stack's fixed local development keys only.
+      - run: npm run test:integration
+
+      - name: Stop Supabase
+        if: always()
+        run: npx --yes supabase@2.122.0 stop --no-backup

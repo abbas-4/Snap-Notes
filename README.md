@@ -11,7 +11,8 @@ review them in five modes:
 - **Learn**: reveal each definition and say whether you knew it; cards you miss come back until you know them.
 - **Match**: pair terms with their definitions against the clock.
 
-Cards are kept in **decks**, so a subject can be studied on its own.
+Cards are kept in **decks**, so a subject can be studied on its own. With an optional
+**account**, cards, decks and learning progress sync across devices, and keep working offline.
 
 **Live app:** <https://abbas-4.github.io/Snap-Notes/>
 
@@ -32,11 +33,11 @@ Milestone 5 is the switch that publishes it at the same address (see [Deployment
 | 5         | Cutover: deploy the new app at the same URL, migrate data on first load, smoke tests | 🚧 Migration and recovery built; site switch pending |
 | 6         | Decks: create, rename, delete, move cards between decks, and study one deck          | ✅ Done                                              |
 | 7         | Spaced repetition, saved learning progress, review dashboard and statistics          | ✅ Done                                              |
-| 8+        | Backend (Node, Express, PostgreSQL, Prisma), accounts, sync across devices           | Later                                                |
+| 8         | Accounts, cloud sync across devices, offline queue, conflicts, data migration        | ✅ Done                                              |
 
-A backend is deliberately left for later. Everything up to Milestone 7 works entirely in the
-browser. A server becomes necessary only for features the browser can't provide: accounts,
-syncing across devices, and sharing decks.
+Everything still works entirely in the browser. Accounts are optional and need a backend
+(Supabase: PostgreSQL and its auth server); without one, the build is the local-only app. See
+[Accounts and cloud sync](docs/accounts-and-sync.md).
 
 ## Tech stack
 
@@ -44,7 +45,9 @@ syncing across devices, and sharing decks.
 - [Vite](https://vite.dev) for the dev server and builds
 - [Tailwind CSS](https://tailwindcss.com) v4
 - [React Router](https://reactrouter.com) in hash mode, so `#list`-style URLs keep working on GitHub Pages
-- [Zod](https://zod.dev) to validate stored data and imported files
+- [Zod](https://zod.dev) to validate stored data, imported files and server replies
+- [Supabase](https://supabase.com) for accounts and sync: its auth server, and PostgreSQL with Row
+  Level Security (optional; see [Accounts and cloud sync](docs/accounts-and-sync.md))
 - [Vitest](https://vitest.dev) and [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/)
 - ESLint, Prettier, and GitHub Actions
 
@@ -62,6 +65,17 @@ npm run dev
 The dev server runs on `localhost`, which has its own `localStorage`, separate from the live
 site, so local development never reads or changes cards saved on `abbas-4.github.io`.
 
+To work on accounts and sync, start a local backend (needs Docker) and point the app at it:
+
+```bash
+npm run db:start
+cp .env.example .env.local   # then fill in the two values printed by: npm run db:status
+npm run dev
+```
+
+The full guide, including setting up a hosted project, is in
+[docs/accounts-and-sync.md](docs/accounts-and-sync.md#local-development).
+
 To try the original app locally, open `legacy/index.html` in a browser.
 
 ### Scripts
@@ -77,6 +91,9 @@ To try the original app locally, open `legacy/index.html` in a browser.
 | `npm run build`                   | Type-check and build into `dist/`                           |
 | `npm run verify:legacy`           | Confirm `legacy/index.html` is byte-for-byte the original   |
 | `npm run verify:site -- <dir>`    | Check an assembled site (or `--url` for the live one)       |
+| `npm run test:integration`        | Run the sync and auth tests against the local Supabase      |
+| `npm run db:start` / `db:stop`    | Start / stop the local Supabase stack (Docker)              |
+| `npm run db:reset` / `db:status`  | Rebuild the local database from migrations / print its keys |
 
 ## Project structure
 
@@ -86,11 +103,16 @@ src/
   domain/               Pure TypeScript: data types, IDs, shuffle, quiz and match rounds, mode
                         sessions, the spaced repetition engine, review queues and statistics
   storage/              localStorage access, legacy migration, import/export, learning progress,
-                        Zod schemas
-  ui/                   React components: layout, pages, app-data provider
-  test/                 Test setup and helpers (an in-memory Storage, app rendering)
+                        sync state, Zod schemas
+  sync/                 The sync engine: records, merge rules, pending changes, account linking
+  cloud/                Backend config checks, the auth interface, the sync wire protocol, and the
+                        Supabase adapter
+  ui/                   React components: layout, pages, providers; ui/account/ for accounts
+  test/                 Test setup and helpers (in-memory Storage, app rendering, fake backend)
   App.tsx, main.tsx     React entry point: routes and providers
-scripts/                Repository scripts (legacy and site verification)
+supabase/               Database migrations (tables, RLS, sync functions) and local stack config
+docs/                   Accounts and cloud sync guide
+scripts/                Repository scripts (legacy and site verification, integration test runner)
 .github/workflows/      CI and GitHub Pages deployment
 ```
 
@@ -253,6 +275,28 @@ inside them:
   deck's page) or for **everything** (on the statistics page). Each asks first, and none of them
   touches a card, a deck or anything else you have written.
 
+## Accounts and sync
+
+Accounts are optional. Signed in, everything syncs; signed out, nothing changes. In short:
+
+- **Create an account or sign in** from **Sign in** in the navigation. Existing cards are never
+  removed: an empty account receives them, an empty browser downloads the account, and when both
+  have cards you choose to combine them (duplicates are recognised) or use the account's.
+- **Studying never waits for the network.** Changes are saved in the browser first and uploaded
+  a moment later; offline, they wait (even across a reload) and go up when the connection is back.
+  The navigation shows whether everything is synced, waiting, offline or failing.
+- **Edits on two devices are merged field by field**; when the same field was changed on both,
+  the later change is used and the other is kept on the account page to restore. Editing beats
+  deleting, and reviews from every device are counted.
+- **Account → Sync** shows the last sync, pending changes and errors, with **Sync now**. The account
+  page also changes the password or email, signs out (optionally removing the data from a shared
+  computer, or on every device) and deletes the account.
+- Two more keys are used: `snapnotes.sync.v1` (what the server last confirmed) and
+  `snapnotes.auth.v1` (the session). The card and progress formats are unchanged.
+
+How it works, the database, conflict rules, security, setup and deployment are documented in
+[docs/accounts-and-sync.md](docs/accounts-and-sync.md).
+
 ## Deployment
 
 GitHub Pages is deployed by [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml)
@@ -280,6 +324,11 @@ value is set. On pull requests the site is only assembled and verified; it deplo
   under `snapnotes.data.v2`, untouched, and reappear when the rebuild is published again. The
   original app can't read the rebuild's export files, so those cards aren't visible during a
   rollback.
+
+Accounts are switched on in the build by two repository **variables**, `SUPABASE_URL` and
+`SUPABASE_PUBLISHABLE_KEY` (both public). Without them the build is local-only. Setting up the
+backend first is described in
+[docs/accounts-and-sync.md](docs/accounts-and-sync.md#setting-up-a-hosted-backend).
 
 ## License
 

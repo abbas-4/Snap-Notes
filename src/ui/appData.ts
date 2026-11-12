@@ -48,6 +48,13 @@ export interface AppDataValue {
   importCards(text: string): ImportOutcome;
   /** The current data serialized in the versioned export format. */
   exportText(): string;
+  /** The latest data, including writes not yet rendered. For sync, not for display. */
+  getData(): AppData;
+  /**
+   * Replaces the whole collection, validated and saved like any other write.
+   * Used by sync to apply changes from other devices.
+   */
+  replaceData(next: AppData): WriteResult;
 }
 
 export const AppDataContext = createContext<AppDataValue | null>(null);
