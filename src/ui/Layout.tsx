@@ -1,5 +1,6 @@
 import type { MouseEvent } from 'react';
 import { NavLink, Outlet } from 'react-router';
+import { AccountNavLink, SyncBanner } from './account/SyncIndicator';
 import { useAppData } from './appData';
 import MigrationNotice from './MigrationNotice';
 import { useProgress } from './progress';
@@ -82,10 +83,12 @@ export default function Layout() {
                   Add card
                 </NavLink>
               </li>
+              <AccountNavLink onClick={guardNavigation} />
             </ul>
           </nav>
         </div>
       </header>
+      <SyncBanner />
       {persistenceWarning && (
         <p
           role="alert"

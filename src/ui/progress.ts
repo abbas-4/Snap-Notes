@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react';
 import type { DailyActivity } from '../domain/progressStats';
 import type { CardProgress, ReviewGrade } from '../domain/srs';
 import type { Card, Timestamp } from '../domain/types';
+import type { ProgressData } from '../storage/progressStore';
 import type { WriteResult } from './appData';
 
 /**
@@ -26,6 +27,12 @@ export interface ProgressValue {
   resetDeck(deckId: string): WriteResult;
   /** Forgets all learning history, including the activity log behind the streaks. */
   resetAll(): WriteResult;
+  /** Everything above as it is saved, for sync. */
+  snapshot: ProgressData;
+  /** The latest progress, including writes not yet rendered. For sync, not for display. */
+  getProgress(): ProgressData;
+  /** Replaces all progress, validated and saved. Used by sync to apply changes from other devices. */
+  replaceProgress(next: ProgressData): WriteResult;
 }
 
 export const ProgressContext = createContext<ProgressValue | null>(null);

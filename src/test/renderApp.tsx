@@ -11,6 +11,7 @@ import {
   PROGRESS_VERSION,
   type ProgressData,
 } from '../storage/progressStore';
+import type { CloudSetup } from '../ui/account/cloudSetup';
 import { MemoryStorage } from './memoryStorage';
 
 const BASE_TIME = 1_700_000_000_000;
@@ -113,12 +114,18 @@ export function storedDecks(storage: MemoryStorage): Deck[] {
 interface RenderAppOptions {
   storage?: Storage | null;
   route?: string;
+  /** Accounts and sync; see `fakeCloud()` in fakeAuth.ts. Left out, the app is local-only. */
+  cloud?: CloudSetup;
 }
 
-export function renderApp({ storage = new MemoryStorage(), route = '/' }: RenderAppOptions = {}) {
+export function renderApp({
+  storage = new MemoryStorage(),
+  route = '/',
+  cloud = { services: null, error: null },
+}: RenderAppOptions = {}) {
   return render(
     <MemoryRouter initialEntries={[route]}>
-      <App storage={storage} />
+      <App storage={storage} cloud={cloud} />
     </MemoryRouter>,
   );
 }

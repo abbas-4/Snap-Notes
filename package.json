@@ -19,10 +19,16 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
+    "test:integration": "node scripts/test-integration.mjs",
     "verify:legacy": "node scripts/verify-legacy.mjs",
-    "verify:site": "node scripts/verify-site.mjs"
+    "verify:site": "node scripts/verify-site.mjs",
+    "db:start": "npx --yes supabase@2.122.0 start -x studio,imgproxy,vector,logflare,supavisor,postgres-meta",
+    "db:stop": "npx --yes supabase@2.122.0 stop",
+    "db:reset": "npx --yes supabase@2.122.0 db reset",
+    "db:status": "npx --yes supabase@2.122.0 status"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.118.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router": "^8.5.0",
