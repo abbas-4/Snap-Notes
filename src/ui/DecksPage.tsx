@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router';
-import { cardCountByDeck } from '../domain/deckOps';
+import { countProgressByDeck, emptyProgressCounts } from '../domain/progressStats';
 import { useAppData } from './appData';
 import DeckNameForm from './DeckNameForm';
+import { useProgress } from './progress';
+import { DeckProgressLine } from './ProgressSummary';
 import { primaryButton, secondaryButton } from './styles';
+import { useNow } from './useNow';
 
 function cardsLabel(count: number): string {
   return `${count} ${count === 1 ? 'card' : 'cards'}`;
@@ -11,11 +14,13 @@ function cardsLabel(count: number): string {
 
 export default function DecksPage() {
   const { data, createDeck } = useAppData();
+  const { records } = useProgress();
+  const now = useNow(true, 60_000);
   // A deck page that deletes a deck sends its message here, since it navigates away.
   const handedOver = (useLocation().state as { status?: string } | null)?.status ?? null;
   const [status, setStatus] = useState<string | null>(handedOver);
 
-  const counts = cardCountByDeck(data);
+  const counts = countProgressByDeck(data, records, now);
   // Alphabetical, so a deck stays easy to find as the list grows.
   const decks = [...data.decks].sort((a, b) => a.name.localeCompare(b.name));
 
@@ -77,16 +82,28 @@ export default function DecksPage() {
                     </Link>
                   </h3>
                   <p className="mt-0.5 text-sm text-gray-500">
-                    {cardsLabel(counts.get(deck.id) ?? 0)}
+                    {cardsLabel(counts.get(deck.id)?.total ?? 0)}
                   </p>
+                  <div className="mt-2 max-w-sm">
+                    <DeckProgressLine counts={counts.get(deck.id) ?? emptyProgressCounts()} />
+                  </div>
                 </div>
-                <Link
-                  to={`/list?deck=${encodeURIComponent(deck.id)}`}
-                  className={secondaryButton}
-                  aria-label={`Browse the cards in ${deck.name}`}
-                >
-                  Cards
-                </Link>
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    to={`/review?deck=${encodeURIComponent(deck.id)}`}
+                    className={secondaryButton}
+                    aria-label={`Review ${deck.name}`}
+                  >
+                    Review
+                  </Link>
+                  <Link
+                    to={`/list?deck=${encodeURIComponent(deck.id)}`}
+                    className={secondaryButton}
+                    aria-label={`Browse the cards in ${deck.name}`}
+                  >
+                    Cards
+                  </Link>
+                </div>
               </li>
             ))}
           </ul>

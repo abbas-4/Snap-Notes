@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { DEFAULT_DECK_ID } from '../domain/appData';
+import { describeDue, mastery, retention } from '../domain/srs';
 import type { Card } from '../domain/types';
 import { useAppData } from './appData';
 import { useDeckScope, withDeck } from './deckScope';
+import { useProgress } from './progress';
+import { percent, reviewsLabel } from './progressText';
+import ResetProgressPanel from './ResetProgressPanel';
 import { primaryButton, secondaryButton, selectField, textField } from './styles';
 import { useUnsavedChanges } from './unsavedChanges';
+import { useNow } from './useNow';
 
 interface CardFormPageProps {
   mode: 'add' | 'edit';
@@ -199,6 +204,76 @@ function CardForm({ card, initialDeckId, scoped }: CardFormProps) {
           </button>
         </div>
       </form>
+      {card && <CardProgressSection card={card} />}
     </div>
+  );
+}
+
+const STAGE_LABELS = {
+  learning: 'Learning',
+  review: 'Reviewing',
+  mastered: 'Mastered',
+} as const;
+
+/**
+ * What reviewing knows about this card, and the way to forget it.
+ *
+ * Editing a card never touches its learning history: a typo fixed in a
+ * definition should not cost the user weeks of scheduling. Resetting it is
+ * therefore something they ask for here, on its own.
+ */
+function CardProgressSection({ card }: { card: Card }) {
+  const { records, resetCard } = useProgress();
+  // Read once when the page opens: "due tomorrow" need not tick while typing.
+  const now = useNow(false);
+  const progress = records.get(card.id);
+
+  return (
+    <section aria-labelledby="card-progress-heading" className="mt-10 max-w-xl">
+      <h2 id="card-progress-heading" className="text-lg font-semibold">
+        Learning progress
+      </h2>
+      {progress ? (
+        <dl className="mt-3 grid grid-cols-2 gap-3 rounded-xl border border-gray-200 bg-white p-4 text-sm shadow-sm">
+          <div>
+            <dt className="text-gray-600">Reviews</dt>
+            <dd className="font-semibold">{reviewsLabel(progress.reviews)}</dd>
+          </div>
+          <div>
+            <dt className="text-gray-600">Remembered</dt>
+            <dd className="font-semibold">
+              {percent(retention(progress))} ({progress.correct} of {progress.reviews})
+            </dd>
+          </div>
+          <div>
+            <dt className="text-gray-600">Stage</dt>
+            <dd className="font-semibold">
+              {STAGE_LABELS[progress.stage]} · {percent(mastery(progress))} learned
+            </dd>
+          </div>
+          <div>
+            <dt className="text-gray-600">Next review</dt>
+            <dd className="font-semibold">{describeDue(progress, now)}</dd>
+          </div>
+        </dl>
+      ) : (
+        <p className="mt-2 text-sm text-gray-600">
+          This card has not been reviewed yet, so it counts as new.
+        </p>
+      )}
+      <div className="mt-3">
+        <ResetProgressPanel
+          label="Reset this card's progress"
+          question={`Reset the learning progress for this card?`}
+          disabled={!progress}
+          disabledHint="There is no progress to reset yet."
+          onReset={() => resetCard(card.id)}
+          successMessage="This card's learning progress has been reset. The card itself is unchanged."
+        >
+          The card starts again as new: its review history, schedule and streak for this card are
+          forgotten. The term, definition and deck stay exactly as they are.
+        </ResetProgressPanel>
+      </div>
+    </section>
   );
 }

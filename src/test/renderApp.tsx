@@ -2,8 +2,15 @@ import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import App from '../App';
 import { createDefaultDeck } from '../domain/appData';
+import type { DailyActivity } from '../domain/progressStats';
+import { START_EASE, type CardProgress } from '../domain/srs';
 import { SCHEMA_VERSION, type AppData, type Card, type Deck } from '../domain/types';
 import { STORAGE_KEY } from '../storage/localStore';
+import {
+  PROGRESS_STORAGE_KEY,
+  PROGRESS_VERSION,
+  type ProgressData,
+} from '../storage/progressStore';
 import { MemoryStorage } from './memoryStorage';
 
 const BASE_TIME = 1_700_000_000_000;
@@ -48,6 +55,47 @@ export function storageWithCards(cards: Card[]): MemoryStorage {
 /** Storage pre-seeded with whole v2 data, for tests that need several decks. */
 export function storageWithData(data: AppData): MemoryStorage {
   return new MemoryStorage({ [STORAGE_KEY]: JSON.stringify(data) });
+}
+
+/** A learning record for a card, already scheduled. Override what a test cares about. */
+export function makeProgress(overrides: Partial<CardProgress> & { cardId: string }): CardProgress {
+  const now = Date.now();
+  return {
+    deckId: 'default',
+    reviews: 1,
+    correct: 1,
+    incorrect: 0,
+    stage: 'review',
+    intervalDays: 1,
+    ease: START_EASE,
+    lastReviewedAt: now - 86_400_000,
+    dueAt: now + 86_400_000,
+    streak: 1,
+    ...overrides,
+  };
+}
+
+/** Storage holding cards, decks and saved learning progress. */
+export function storageWithProgress(
+  data: AppData,
+  records: CardProgress[] = [],
+  history: DailyActivity[] = [],
+): MemoryStorage {
+  return new MemoryStorage({
+    [STORAGE_KEY]: JSON.stringify(data),
+    [PROGRESS_STORAGE_KEY]: JSON.stringify({
+      version: PROGRESS_VERSION,
+      records,
+      history,
+    } satisfies ProgressData),
+  });
+}
+
+/** The progress as it is saved right now, for checking what a click wrote. */
+export function storedProgress(storage: MemoryStorage): ProgressData {
+  const raw = storage.getItem(PROGRESS_STORAGE_KEY);
+  if (raw === null) return { version: PROGRESS_VERSION, records: [], history: [] };
+  return JSON.parse(raw) as ProgressData;
 }
 
 export function storedCards(storage: MemoryStorage): Card[] {

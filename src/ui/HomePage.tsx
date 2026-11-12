@@ -1,12 +1,20 @@
 import { Link } from 'react-router';
+import { countProgress, nextDueAt } from '../domain/progressStats';
 import { useAppData } from './appData';
 import { cardLabel, formatDate } from './cardText';
 import ImportExportPanel from './ImportExportPanel';
+import { useProgress } from './progress';
+import { cardsLabel, relativeDay } from './progressText';
 import { primaryButton, secondaryButton } from './styles';
+import { useNow } from './useNow';
 
 export default function HomePage() {
   const { data } = useAppData();
+  const { records } = useProgress();
+  const now = useNow(true, 60_000);
   const total = data.cards.length;
+  const counts = countProgress(data.cards, records, now);
+  const soonest = nextDueAt(records, now);
   const recent = [...data.cards].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 4);
 
   return (
@@ -46,6 +54,33 @@ export default function HomePage() {
           </>
         )}
       </section>
+
+      {total > 0 && (
+        <section aria-labelledby="due-heading">
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5">
+            <h2 id="due-heading" className="text-lg font-semibold text-indigo-950">
+              {counts.due > 0
+                ? `${cardsLabel(counts.due)} due for review`
+                : 'You’re all caught up!'}
+            </h2>
+            <p className="mt-1 text-sm text-indigo-900">
+              {counts.due > 0
+                ? 'Snap Notes schedules each card for when you are about to forget it.'
+                : soonest !== null
+                  ? `Your next card is due ${relativeDay(soonest, now)}.`
+                  : 'Start a review to put your cards on a schedule.'}
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link to="/review" className={primaryButton}>
+                {counts.due > 0 ? `Review ${counts.due} now` : 'Go to review'}
+              </Link>
+              <Link to="/stats" className={secondaryButton}>
+                Your progress
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
 
       {total > 0 && (
         <section aria-labelledby="review-heading">

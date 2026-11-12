@@ -1,4 +1,5 @@
 import { useSearchParams } from 'react-router';
+import type { ReviewMode } from '../domain/reviewQueue';
 import type { Card, Deck } from '../domain/types';
 import { useAppData } from './appData';
 
@@ -40,6 +41,13 @@ export function useDeckScope(): DeckScope {
     unknownDeck: false,
     cards: data.cards.filter((card) => card.deckId === deckId),
   };
+}
+
+/** A link into a review session, carrying the deck in scope when there is one. */
+export function reviewLink(mode: ReviewMode, deckId: string | null): string {
+  const params = new URLSearchParams({ mode });
+  if (deckId !== null) params.set(DECK_PARAM, deckId);
+  return `/review?${params.toString()}`;
 }
 
 /** Appends `?deck=<id>` to a path, or leaves it alone when nothing is in scope. */

@@ -9,7 +9,10 @@ import LearnPage from './ui/LearnPage';
 import LegacyRouteRedirect from './ui/LegacyRouteRedirect';
 import ListPage from './ui/ListPage';
 import MatchPage from './ui/MatchPage';
+import ProgressProvider from './ui/ProgressProvider';
 import QuizPage from './ui/QuizPage';
+import ReviewPage from './ui/ReviewPage';
+import StatsPage from './ui/StatsPage';
 import StudyPage from './ui/StudyPage';
 import UnsavedChangesProvider from './ui/UnsavedChangesProvider';
 
@@ -21,23 +24,27 @@ interface AppProps {
 export default function App({ storage }: AppProps = {}) {
   return (
     <AppDataProvider storage={storage}>
-      <UnsavedChangesProvider>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<HomePage />} />
-            <Route path="list" element={<ListPage />} />
-            <Route path="decks" element={<DecksPage />} />
-            <Route path="decks/:deckId" element={<DeckPage />} />
-            <Route path="study" element={<StudyPage />} />
-            <Route path="quiz" element={<QuizPage />} />
-            <Route path="learn" element={<LearnPage />} />
-            <Route path="match" element={<MatchPage />} />
-            <Route path="add" element={<CardFormPage mode="add" />} />
-            <Route path="edit/:cardId" element={<CardFormPage mode="edit" />} />
-            <Route path="*" element={<LegacyRouteRedirect />} />
-          </Route>
-        </Routes>
-      </UnsavedChangesProvider>
+      <ProgressProvider storage={storage}>
+        <UnsavedChangesProvider>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route index element={<HomePage />} />
+              <Route path="list" element={<ListPage />} />
+              <Route path="decks" element={<DecksPage />} />
+              <Route path="decks/:deckId" element={<DeckPage />} />
+              <Route path="review" element={<ReviewPage />} />
+              <Route path="stats" element={<StatsPage />} />
+              <Route path="study" element={<StudyPage />} />
+              <Route path="quiz" element={<QuizPage />} />
+              <Route path="learn" element={<LearnPage />} />
+              <Route path="match" element={<MatchPage />} />
+              <Route path="add" element={<CardFormPage mode="add" />} />
+              <Route path="edit/:cardId" element={<CardFormPage mode="edit" />} />
+              <Route path="*" element={<LegacyRouteRedirect />} />
+            </Route>
+          </Routes>
+        </UnsavedChangesProvider>
+      </ProgressProvider>
     </AppDataProvider>
   );
 }
