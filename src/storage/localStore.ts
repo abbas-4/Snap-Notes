@@ -87,7 +87,8 @@ const UNAVAILABLE = {
   message: 'Browser storage is not available.',
 } as const;
 
-function isQuotaError(error: unknown): boolean {
+/** Whether a failed write was refused because storage is full. Shared with the progress store. */
+export function isQuotaError(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
   const { name, code } = error as { name?: unknown; code?: unknown };
   // Current browsers set the name; older WebKit used code 22 and older Firefox 1014.

@@ -3,8 +3,9 @@
 [![CI](https://github.com/abbas-4/Snap-Notes/actions/workflows/ci.yml/badge.svg)](https://github.com/abbas-4/Snap-Notes/actions/workflows/ci.yml)
 
 Snap Notes is a flashcard and study app. You write cards with a term and a definition, then
-review them in four modes:
+review them in five modes:
 
+- **Review**: spaced repetition. Each card comes back when you are about to forget it, and your progress is saved.
 - **Study**: flip through cards one at a time.
 - **Quiz**: multiple-choice questions built from your own definitions.
 - **Learn**: reveal each definition and say whether you knew it; cards you miss come back until you know them.
@@ -30,7 +31,7 @@ Milestone 5 is the switch that publishes it at the same address (see [Deployment
 | 4         | Learn and Match modes                                                                | ✅ Done                                              |
 | 5         | Cutover: deploy the new app at the same URL, migrate data on first load, smoke tests | 🚧 Migration and recovery built; site switch pending |
 | 6         | Decks: create, rename, delete, move cards between decks, and study one deck          | ✅ Done                                              |
-| 7         | Spaced repetition and saved progress                                                 | Planned                                              |
+| 7         | Spaced repetition, saved learning progress, review dashboard and statistics          | ✅ Done                                              |
 | 8+        | Backend (Node, Express, PostgreSQL, Prisma), accounts, sync across devices           | Later                                                |
 
 A backend is deliberately left for later. Everything up to Milestone 7 works entirely in the
@@ -82,8 +83,10 @@ To try the original app locally, open `legacy/index.html` in a browser.
 ```
 legacy/index.html       The original app, preserved unchanged and served on GitHub Pages
 src/
-  domain/               Pure TypeScript: data types, IDs, shuffle, quiz and match rounds, mode sessions
-  storage/              localStorage access, legacy migration, import/export, Zod schemas
+  domain/               Pure TypeScript: data types, IDs, shuffle, quiz and match rounds, mode
+                        sessions, the spaced repetition engine, review queues and statistics
+  storage/              localStorage access, legacy migration, import/export, learning progress,
+                        Zod schemas
   ui/                   React components: layout, pages, app-data provider
   test/                 Test setup and helpers (an in-memory Storage, app rendering)
   App.tsx, main.tsx     React entry point: routes and providers
@@ -97,11 +100,11 @@ in-memory fake.
 
 ## Data and migration
 
-|                  | Original app                                     | Rebuild                                                                |
-| ---------------- | ------------------------------------------------ | ---------------------------------------------------------------------- |
-| localStorage key | `abbas_flashcards_v1`                            | `snapnotes.data.v2`                                                    |
-| Shape            | `[{ id, term, definition, created?, updated? }]` | `{ schemaVersion: 2, decks, cards }`                                   |
-| Export file      | The bare array                                   | `{ format: "snap-notes", schemaVersion: 2, exportedAt, decks, cards }` |
+|                  | Original app                                     | Rebuild                                                                 |
+| ---------------- | ------------------------------------------------ | ----------------------------------------------------------------------- |
+| localStorage key | `abbas_flashcards_v1`                            | `snapnotes.data.v2`, plus `snapnotes.progress.v1` for learning progress |
+| Shape            | `[{ id, term, definition, created?, updated? }]` | `{ schemaVersion: 2, decks, cards }`                                    |
+| Export file      | The bare array                                   | `{ format: "snap-notes", schemaVersion: 2, exportedAt, decks, cards }`  |
 
 The first time the rebuild opens in a browser that has cards from the original app, it moves
 them over automatically:
@@ -167,6 +170,88 @@ Three things worth knowing about decks and import files:
   and the name you have now wins.
 - A card you have moved to another deck can come back as a second copy when you import an older
   backup, because a card is recognised by its deck, term and definition together.
+
+## Spaced repetition and saved progress
+
+**Review** schedules each card for the day you are about to forget it, and remembers how well you
+know it between visits.
+
+- **The engine** ([`src/domain/srs.ts`](src/domain/srs.ts)) is a simplified, SM-2-inspired
+  scheduler. It is pure, takes the current time as an argument, and holds no React or storage
+  code, so every rule below is covered by tests.
+- Answers are graded **Again**, **Hard**, **Good** or **Easy** (keys <kbd>1</kbd>–<kbd>4</kbd>,
+  after <kbd>Space</kbd> reveals the answer). Each button shows the interval it would schedule.
+- Successful reviews follow **1 day, 3 days, 7 days**, and from there the interval is multiplied
+  by the card's ease, which rises with _Easy_ and falls with _Hard_ and _Again_ (kept within
+  1.3–2.8). _Hard_ never schedules further out than _Good_, and _Easy_ always schedules further.
+  No interval is ever negative, zero, or more than a year.
+- **Again** clears the card's streak, lowers its ease, returns it to the start of the schedule,
+  and brings it back within the same session, ten minutes later.
+- Intervals are **whole calendar days**, and a card falls due at the _start_ of its day. A card
+  answered at 23:50 with a one-day interval is due ten minutes later, at midnight, not at 23:50
+  the next night. Day arithmetic is local and calendar-based, so a clock change does not shift a
+  schedule.
+- A card is **new** until it is first reviewed, **learning** until it is on a multi-day schedule,
+  and **mastered** once it is scheduled three weeks or more ahead.
+
+### Where progress is kept
+
+Learning progress lives under its own key, `snapnotes.progress.v1`, next to the cards rather than
+inside them:
+
+```json
+{
+  "version": 1,
+  "records": [
+    {
+      "cardId": "…",
+      "deckId": "…",
+      "reviews": 4,
+      "correct": 3,
+      "incorrect": 1,
+      "stage": "review",
+      "intervalDays": 7,
+      "ease": 2.5,
+      "lastReviewedAt": 0,
+      "dueAt": 0,
+      "streak": 3
+    }
+  ],
+  "history": [{ "day": "2026-11-11", "reviews": 12, "correct": 10 }]
+}
+```
+
+- **The card format is unchanged.** Data is still `schemaVersion: 2`, export files are still the
+  same shape, and a build from before this milestone reads everything written by it. There is
+  nothing to migrate: cards saved earlier simply count as new until they are first reviewed.
+- Progress is validated on the way in and out, **one record at a time**: a single damaged record
+  costs that card's history and nothing else. Progress that cannot be read at all starts again
+  from empty, with a notice — and **the cards are never touched**.
+- Progress written by a newer version of the app is left exactly as it is, never overwritten.
+- Records are kept in step with the cards: a deleted card's record goes with it, a card that
+  moves deck takes its record along, and duplicate records are collapsed into the one with more
+  reviewing behind it.
+- **Editing a card keeps its history**, so fixing a typo does not cost weeks of scheduling.
+- Every write is read back to confirm it landed; a refused write is reported rather than
+  silently dropped.
+
+### Reviewing, deck progress and statistics
+
+- **Review** shows what is due, what is overdue, what is new, and what is mastered, with
+  sessions for due cards, new cards, difficult cards, or everything. Due sessions put overdue
+  cards first, then difficult ones, then the rest of today's.
+- Every session can be narrowed to one deck: `#/review?deck=<id>`, and `#/review?mode=due` links
+  straight into one.
+- When nothing is waiting, Review says so and gives the day the next card is due.
+- **Decks** show how far each deck has come, and what it has waiting, so you can see which deck
+  needs attention without opening it.
+- **Your progress** (`#/stats`) reports reviews completed, accuracy, reviews today, current and
+  longest streaks, cards mastered, the last 14 days of activity and the week ahead. Every figure
+  is read from the saved records and the day-by-day log; nothing is estimated, and a collection
+  that has never been reviewed shows zeroes.
+- Progress can be reset for **one card** (on the card's own form), for **a whole deck** (on the
+  deck's page) or for **everything** (on the statistics page). Each asks first, and none of them
+  touches a card, a deck or anything else you have written.
 
 ## Deployment
 

@@ -1,10 +1,16 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { cardCountByDeck } from '../domain/deckOps';
+import { countProgress } from '../domain/progressStats';
 import { useAppData } from './appData';
 import DeckNameForm from './DeckNameForm';
+import { reviewLink } from './deckScope';
 import DeckNotFound from './DeckNotFound';
+import { useProgress } from './progress';
+import { DeckProgressLine } from './ProgressSummary';
+import ResetProgressPanel from './ResetProgressPanel';
 import { dangerButton, primaryButton, secondaryButton, selectField } from './styles';
+import { useNow } from './useNow';
 
 const MODES = [
   { path: '/study', label: 'Study' },
@@ -26,6 +32,8 @@ export default function DeckPage() {
 
 function DeckDetail({ deckId }: { deckId: string }) {
   const { data, renameDeck, deleteDeck } = useAppData();
+  const { records, resetDeck } = useProgress();
+  const now = useNow(true, 60_000);
   const navigate = useNavigate();
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +50,11 @@ function DeckDetail({ deckId }: { deckId: string }) {
   if (!deck) return null;
 
   const count = cardCountByDeck(data).get(deckId) ?? 0;
+  const counts = countProgress(
+    data.cards.filter((card) => card.deckId === deckId),
+    records,
+    now,
+  );
   const scoped = `?deck=${encodeURIComponent(deckId)}`;
   const isOnlyDeck = others.length === 0;
 
@@ -110,6 +123,48 @@ function DeckDetail({ deckId }: { deckId: string }) {
               </Link>
             ))}
           </div>
+        )}
+      </section>
+
+      <section aria-labelledby="deck-progress-heading">
+        <h2 id="deck-progress-heading" className="text-lg font-semibold">
+          Learning progress
+        </h2>
+        {count === 0 ? (
+          <p className="mt-2 text-sm text-gray-600">
+            Add a card to this deck to start tracking what you know.
+          </p>
+        ) : (
+          <>
+            <div className="mt-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <DeckProgressLine counts={counts} />
+              <p className="mt-3 text-sm text-gray-600">
+                {counts.reviewed} of {counts.reviewable} reviewed at least once · {counts.mastered}{' '}
+                mastered
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <Link to={reviewLink('due', deckId)} className={primaryButton}>
+                  {counts.due > 0 ? `Review ${counts.due} due` : 'Review this deck'}
+                </Link>
+                <Link to={`/review?deck=${encodeURIComponent(deckId)}`} className={secondaryButton}>
+                  Review options
+                </Link>
+              </div>
+            </div>
+            <div className="mt-3">
+              <ResetProgressPanel
+                label="Reset this deck's progress"
+                question={`Reset the learning progress for every card in “${deck.name}”?`}
+                disabled={counts.reviewed === 0}
+                disabledHint="No card in this deck has been reviewed yet."
+                onReset={() => resetDeck(deckId)}
+                successMessage={`Learning progress for “${deck.name}” has been reset. Its cards are unchanged.`}
+              >
+                Every card in this deck starts again as new. The cards themselves, their decks and
+                the rest of your progress are left as they are.
+              </ResetProgressPanel>
+            </div>
+          </>
         )}
       </section>
 
