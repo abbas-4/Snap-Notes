@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { createEmptyAppData } from '../../domain/appData';
 import type { Card, Deck } from '../../domain/types';
 import { resolveStorage } from '../../storage/localStore';
+import { emptyAnalytics } from '../../storage/analyticsStore';
 import { emptyProgress } from '../../storage/progressStore';
 import {
   clearSyncState,
@@ -23,6 +24,7 @@ import { recordsFromSnapshot } from '../../sync/records';
 import type { SyncState } from '../../sync/state';
 import { useAppData, type WriteResult } from '../appData';
 import { useProgress } from '../progress';
+import { useStudyLog } from '../studyLog';
 import { SyncContext, useAuth, type LinkState, type SyncStatus, type SyncValue } from './cloud';
 
 /** Wait this long after a change before uploading, so a burst of edits goes up together. */
@@ -59,6 +61,7 @@ export default function SyncProvider({ storage, children }: SyncProviderProps) {
   const auth = useAuth();
   const { data, getData, replaceData, updateCard, renameDeck, deleteCard } = useAppData();
   const { snapshot, getProgress, replaceProgress } = useProgress();
+  const { snapshot: analyticsSnapshot, getAnalytics, replaceAnalytics } = useStudyLog();
   const [resolved] = useState(() => resolveStorage(storage));
 
   const [syncState, setSyncState] = useState<SyncState | null>(() => {
@@ -104,15 +107,20 @@ export default function SyncProvider({ storage, children }: SyncProviderProps) {
 
   const local = useMemo<LocalStore>(
     () => ({
-      read: () => ({ data: getData(), progress: getProgress() }),
+      read: () => ({ data: getData(), progress: getProgress(), analytics: getAnalytics() }),
       write: (next) => {
         const cards = replaceData(next.data);
         if (!cards.ok) return cards;
         const progress = replaceProgress(next.progress);
-        return progress.ok ? { ok: true } : progress;
+        if (!progress.ok) return progress;
+        if (next.analytics) {
+          const analytics = replaceAnalytics(next.analytics);
+          if (!analytics.ok) return analytics;
+        }
+        return { ok: true };
       },
     }),
-    [getData, getProgress, replaceData, replaceProgress],
+    [getAnalytics, getData, getProgress, replaceAnalytics, replaceData, replaceProgress],
   );
 
   const engine = useCallback(
@@ -298,11 +306,11 @@ export default function SyncProvider({ storage, children }: SyncProviderProps) {
   const pending = useMemo(() => {
     if (!syncState) return 0;
     return pendingChanges(
-      recordsFromSnapshot({ data, progress: snapshot }),
+      recordsFromSnapshot({ data, progress: snapshot, analytics: analyticsSnapshot }),
       syncState.base,
       syncState.rejected,
     ).length;
-  }, [data, snapshot, syncState]);
+  }, [analyticsSnapshot, data, snapshot, syncState]);
   const pendingRef = useRef(pending);
   useEffect(() => {
     pendingRef.current = pending;
@@ -320,7 +328,7 @@ export default function SyncProvider({ storage, children }: SyncProviderProps) {
       if (pendingRef.current > 0) void runRef.current();
     }, CHANGE_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [linked, online, data, snapshot]);
+  }, [linked, online, data, snapshot, analyticsSnapshot]);
 
   // Regularly, and on returning to the page, to pick up changes from other devices.
   useEffect(() => {
@@ -416,10 +424,12 @@ export default function SyncProvider({ storage, children }: SyncProviderProps) {
     if (!cards.ok) return cards;
     const progress = replaceProgress(emptyProgress());
     if (!progress.ok) return progress;
+    const analytics = replaceAnalytics(emptyAnalytics());
+    if (!analytics.ok) return analytics;
     persistState(null);
     setLinkReport(null);
     return { ok: true };
-  }, [persistState, replaceData, replaceProgress]);
+  }, [persistState, replaceAnalytics, replaceData, replaceProgress]);
 
   const unlink = useCallback(() => {
     persistState(null);

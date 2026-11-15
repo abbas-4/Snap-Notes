@@ -1,7 +1,9 @@
 import { z } from 'zod';
+import { studyGoalSchema, studySessionSchema } from '../storage/analyticsStore';
 import { cardProgressSchema, dailyActivitySchema } from '../storage/progressStore';
 import { cardSchema, deckSchema } from '../storage/schemas';
 import { SyncError } from '../sync/engine';
+import { RECORD_KINDS } from '../sync/records';
 import type { PullPage, PushResult, RemoteRecord } from '../sync/state';
 
 /**
@@ -11,13 +13,15 @@ import type { PullPage, PushResult, RemoteRecord } from '../sync/state';
  * does not fit is refused as a whole, and nothing from it reaches the device.
  */
 
-const kindSchema = z.enum(['deck', 'card', 'progress', 'history']);
+const kindSchema = z.enum(RECORD_KINDS);
 
 const dataByKind = {
   deck: deckSchema,
   card: cardSchema,
   progress: cardProgressSchema,
   history: dailyActivitySchema,
+  session: studySessionSchema,
+  goal: studyGoalSchema,
 } as const;
 
 const remoteShape = z.object({

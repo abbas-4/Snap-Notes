@@ -1,4 +1,4 @@
-import { useCallback, useReducer, useRef, type RefObject } from 'react';
+import { useCallback, useEffect, useReducer, useRef, type RefObject } from 'react';
 import { Link } from 'react-router';
 import { hasBothSides } from '../domain/cardText';
 import {
@@ -28,6 +28,7 @@ import DeckScopeNotice from './DeckScopeNotice';
 import EmptyState from './EmptyState';
 import { formatElapsed, spokenDuration } from './formatDuration';
 import ProgressBar from './ProgressBar';
+import { useSessionRecorder } from './studyLog';
 import { primaryButton, secondaryButton } from './styles';
 import { useFocusOnChange } from './useFocusOnChange';
 import { useNow } from './useNow';
@@ -60,7 +61,7 @@ export default function MatchPage() {
   return (
     <>
       {deck && <DeckScopeNotice deck={deck} />}
-      <MatchSession cards={cards} />
+      <MatchSession cards={cards} deckId={deck?.id ?? null} />
     </>
   );
 }
@@ -72,10 +73,29 @@ function newRound(cards: readonly Card[]): MatchRound {
   return buildMatchRound(cards) ?? NO_ROUND;
 }
 
-function MatchSession({ cards }: { cards: readonly Card[] }) {
+function MatchSession({ cards, deckId }: { cards: readonly Card[]; deckId: string | null }) {
   const [state, dispatch] = useReducer(matchReducer, cards, (initial) =>
     startMatch(newRound(initial)),
   );
+
+  // Every pairing goes into the study log, against the term's card: a right
+  // pair counts as correct, a wrong one as missed, exactly as the round's own
+  // accuracy counts them. Match answers are not timed (tiles are picked from a
+  // board, not answered one by one). Each round is its own session.
+  const recorder = useSessionRecorder('match', deckId);
+  const logged = useRef({ sessionId: state.sessionId, count: 0 });
+  useEffect(() => {
+    if (logged.current.sessionId !== state.sessionId) {
+      logged.current = { sessionId: state.sessionId, count: 0 };
+      recorder.restart();
+    }
+    for (let i = logged.current.count; i < state.attempts.length; i += 1) {
+      const attempt = state.attempts[i] as (typeof state.attempts)[number];
+      const term = findTile(state, attempt.termId);
+      if (term) recorder.record({ cardId: term.pairId, correct: attempt.correct, shownAt: null });
+    }
+    logged.current.count = Math.max(logged.current.count, state.attempts.length);
+  }, [recorder, state]);
   const phase = matchPhase(state);
   const { sessionId } = state;
   const total = pairCount(state);

@@ -1,5 +1,6 @@
 import type { Session, SupabaseClient, User } from '@supabase/supabase-js';
 import type { SyncTransport } from '../sync/engine';
+import { RECORD_KINDS } from '../sync/records';
 import type { PushChange } from '../sync/state';
 import {
   authFailure,
@@ -256,7 +257,8 @@ class SupabaseSyncTransport implements SyncTransport {
 
   async pull(since: number) {
     const { data, error, status } = await this.client
-      .rpc('sync_pull', { since, max_rows: 500 })
+      // Names every kind this version understands; the server sends nothing else.
+      .rpc('sync_pull', { since, max_rows: 500, kinds: [...RECORD_KINDS] })
       .abortSignal(AbortSignal.timeout(REQUEST_TIMEOUT_MS));
     if (error) throw classifyRpcFailure({ status, code: error.code, message: error.message });
     return parsePullPage(data);

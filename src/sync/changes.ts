@@ -19,6 +19,8 @@ export function cloneSets(sets: RecordSets): RecordSets {
     card: new Map(sets.card),
     progress: new Map(sets.progress),
     history: new Map(sets.history),
+    session: new Map(sets.session),
+    goal: new Map(sets.goal),
   };
 }
 
@@ -28,6 +30,8 @@ export function cloneBase(base: BaseSets): BaseSets {
     card: { ...base.card },
     progress: { ...base.progress },
     history: { ...base.history },
+    session: { ...base.session },
+    goal: { ...base.goal },
   };
 }
 
@@ -161,7 +165,8 @@ function fingerprint(change: PushChange): string {
 
 /**
  * Upload order: decks before the cards in them, cards before their progress,
- * and deleted decks last, after their cards have moved out.
+ * and deleted decks last, after their cards have moved out. Sessions and goals
+ * depend on nothing else on the server and go with the review log.
  */
 function uploadRank(change: PushChange): number {
   switch (change.kind) {

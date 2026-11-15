@@ -21,6 +21,7 @@ import { withDeck } from './deckScope';
 import DeckScopeNotice from './DeckScopeNotice';
 import { activatesFocusedControl, isShortcutBlocked } from './keyboard';
 import { useProgress } from './progress';
+import { useSessionRecorder, useShownAt } from './studyLog';
 import ProgressBar from './ProgressBar';
 import { percent } from './progressText';
 import {
@@ -87,6 +88,10 @@ export default function ReviewSession({ cards, mode, deck, deckId }: ReviewSessi
   const definitionRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLHeadingElement>(null);
 
+  // Each answer also goes into the study log, timed from when the card appeared.
+  const recorder = useSessionRecorder('review', deckId);
+  const shownAt = useShownAt(`${sessionId}:${turn}`);
+
   const focusOnChange = useCallback(() => {
     if (phase === 'revealed') definitionRef.current?.focus();
     else if (phase === 'finished') resultsRef.current?.focus();
@@ -106,9 +111,14 @@ export default function ReviewSession({ cards, mode, deck, deckId }: ReviewSessi
         return;
       }
       setSaveError(null);
+      recorder.record({
+        cardId: current.id,
+        correct: value !== 'again',
+        shownAt: shownAt(`${state.sessionId}:${state.turn}`),
+      });
       dispatch({ type: 'grade', sessionId: state.sessionId, turn: state.turn, grade: value });
     },
-    [gradeCard, state],
+    [gradeCard, recorder, shownAt, state],
   );
 
   // Space reveals the answer; 1 to 4 grade it.

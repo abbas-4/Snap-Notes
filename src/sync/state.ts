@@ -23,7 +23,7 @@ export interface BaseEntry<T> {
 export type BaseSets = { [K in RecordKind]: Record<string, BaseEntry<RecordTypes[K]>> };
 
 export function emptyBaseSets(): BaseSets {
-  return { deck: {}, card: {}, progress: {}, history: {} };
+  return { deck: {}, card: {}, progress: {}, history: {}, session: {}, goal: {} };
 }
 
 /**

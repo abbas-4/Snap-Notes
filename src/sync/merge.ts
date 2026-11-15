@@ -1,5 +1,7 @@
 import type { DailyActivity } from '../domain/progressStats';
 import type { CardProgress } from '../domain/srs';
+import { mergeGoal, type StudyGoal } from '../domain/studyGoals';
+import { betterSession, type StudySession } from '../domain/studySessions';
 import type { Card, Deck } from '../domain/types';
 import { sameRecord, type RecordKind, type RecordTypes } from './records';
 import type { SyncConflict } from './state';
@@ -27,6 +29,12 @@ import type { SyncConflict } from './state';
  *    due. With no shared version to count from, the larger count is used, so
  *    reviews are never counted twice.
  * 5. The day-by-day review log adds up the same way.
+ * 6. **Study sessions are never edited on two devices**: each is written only
+ *    by the device it happened on, under its own ID. Two copies of one session
+ *    can differ only by how far it had got (or by one being compacted), so the
+ *    copy with more answers is kept, and a session is never counted twice.
+ * 7. **Study goals**: the later change sets the target, and the history of
+ *    changes from both devices is kept.
  *
  * Detection never depends on device clocks: the server's revision numbers
  * decide whether a record changed. Clocks are consulted only to choose between
@@ -99,13 +107,24 @@ export function mergeRecord<K extends RecordKind>(
         ),
         conflict: null,
       } as MergeOutcome<RecordTypes[K]>;
-    default:
+    case 'history':
       return {
         value: mergeHistory(
           base as DailyActivity | null,
           local as DailyActivity,
           remote as DailyActivity,
         ),
+        conflict: null,
+      } as MergeOutcome<RecordTypes[K]>;
+    case 'session':
+      return {
+        // Remote first, so a tie goes the server's way on every device.
+        value: betterSession(remote as StudySession, local as StudySession),
+        conflict: null,
+      } as MergeOutcome<RecordTypes[K]>;
+    default:
+      return {
+        value: mergeGoal(local as StudyGoal, remote as StudyGoal),
         conflict: null,
       } as MergeOutcome<RecordTypes[K]>;
   }

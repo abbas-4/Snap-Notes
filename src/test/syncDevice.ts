@@ -1,6 +1,9 @@
 import { createEmptyAppData } from '../domain/appData';
 import * as deckOps from '../domain/deckOps';
 import { gradeProgress, type ReviewGrade } from '../domain/srs';
+import { setGoal, type GoalKind } from '../domain/studyGoals';
+import { logAnswer, type StudyMode, type StudySession } from '../domain/studySessions';
+import { emptyAnalytics } from '../storage/analyticsStore';
 import type { AppData, Card } from '../domain/types';
 import { emptyProgress, recordActivity, reconcileProgress } from '../storage/progressStore';
 import { appDataSchema, describeIssues } from '../storage/schemas';
@@ -28,7 +31,11 @@ export class TestDevice {
   constructor(name: string, data?: AppData, clock = 1_700_000_000_000) {
     this.name = name;
     this.clock = clock;
-    this.snapshot = { data: data ?? createEmptyAppData(clock), progress: emptyProgress() };
+    this.snapshot = {
+      data: data ?? createEmptyAppData(clock),
+      progress: emptyProgress(),
+      analytics: emptyAnalytics(),
+    };
   }
 
   readonly local: LocalStore = {
@@ -119,6 +126,7 @@ export class TestDevice {
       cards: this.snapshot.data.cards.filter((card) => card.id !== id),
     };
     this.snapshot = {
+      ...this.snapshot,
       data,
       progress: {
         ...this.snapshot.progress,
@@ -169,6 +177,43 @@ export class TestDevice {
         history: recordActivity(this.snapshot.progress.history, this.clock, grade !== 'again'),
       },
     };
+  }
+
+  private currentSession: string | null = null;
+
+  /** One answer in a study mode, recorded in the study log as the app does. */
+  answer(cardId: string, correct: boolean, mode: StudyMode = 'quiz', deckId: string | null = null) {
+    this.tick(5_000);
+    const analytics = this.snapshot.analytics ?? emptyAnalytics();
+    ids += 1;
+    const id = `${this.name}-session-${ids}`;
+    const result = logAnswer(
+      analytics.sessions,
+      this.currentSession,
+      { mode, deckId },
+      { cardId, correct, at: this.clock, shownAt: this.clock - 3_000 },
+      () => id,
+    );
+    this.currentSession = result.sessionId;
+    this.snapshot = { ...this.snapshot, analytics: { ...analytics, sessions: result.sessions } };
+  }
+
+  /** Ends the current session; the next answer starts a new one. */
+  endSession() {
+    this.currentSession = null;
+  }
+
+  setGoal(kind: GoalKind, target: number | null) {
+    this.tick();
+    const analytics = this.snapshot.analytics ?? emptyAnalytics();
+    this.snapshot = {
+      ...this.snapshot,
+      analytics: { ...analytics, goals: setGoal(analytics.goals, kind, target, this.clock) },
+    };
+  }
+
+  get sessions(): StudySession[] {
+    return this.snapshot.analytics?.sessions ?? [];
   }
 
   progressOf(cardId: string) {

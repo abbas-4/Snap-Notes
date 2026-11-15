@@ -144,14 +144,16 @@ describe('offline studying', () => {
     await user.click(await screen.findByRole('button', { name: 'Show answer' }));
     await user.click(screen.getByRole('button', { name: /^Good/ }));
 
+    // The card's progress, the day in the review log, and the study session.
     expect(
-      await screen.findByRole('link', { name: /Account: Offline · 2 changes waiting/ }),
+      await screen.findByRole('link', { name: /Account: Offline · 3 changes waiting/ }),
     ).toBeInTheDocument();
     expect(cloud.server.pushes).toBe(pushesWhileOffline);
 
     setOnline(true);
     await waitFor(() => expect(cloud.server.live('progress')).toHaveLength(1));
     expect(cloud.server.live('history')).toHaveLength(1);
+    expect(cloud.server.live('session')).toHaveLength(1);
     expect(await screen.findByRole('link', { name: 'Account: Synced' })).toBeInTheDocument();
   });
 });

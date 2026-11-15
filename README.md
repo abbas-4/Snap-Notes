@@ -11,8 +11,10 @@ review them in five modes:
 - **Learn**: reveal each definition and say whether you knew it; cards you miss come back until you know them.
 - **Match**: pair terms with their definitions against the clock.
 
-Cards are kept in **decks**, so a subject can be studied on its own. With an optional
-**account**, cards, decks and learning progress sync across devices, and keep working offline.
+Cards are kept in **decks**, so a subject can be studied on its own. **Analytics** shows how much
+and how well you study, which cards and decks need attention, your streaks and goals, and what to
+study next. With an optional **account**, cards, decks, learning progress, study history and goals
+sync across devices, and keep working offline.
 
 **Live app:** <https://abbas-4.github.io/Snap-Notes/>
 
@@ -34,6 +36,7 @@ Milestone 5 is the switch that publishes it at the same address (see [Deployment
 | 6         | Decks: create, rename, delete, move cards between decks, and study one deck          | ✅ Done                                              |
 | 7         | Spaced repetition, saved learning progress, review dashboard and statistics          | ✅ Done                                              |
 | 8         | Accounts, cloud sync across devices, offline queue, conflicts, data migration        | ✅ Done                                              |
+| 9         | Learning analytics: dashboard, charts, decks, weak cards, streaks, goals, history    | ✅ Done                                              |
 
 Everything still works entirely in the browser. Accounts are optional and need a backend
 (Supabase: PostgreSQL and its auth server); without one, the build is the local-only app. See
@@ -101,17 +104,19 @@ To try the original app locally, open `legacy/index.html` in a browser.
 legacy/index.html       The original app, preserved unchanged and served on GitHub Pages
 src/
   domain/               Pure TypeScript: data types, IDs, shuffle, quiz and match rounds, mode
-                        sessions, the spaced repetition engine, review queues and statistics
+                        sessions, the spaced repetition engine, review queues and statistics,
+                        the study log, goals, analytics and recommendations
   storage/              localStorage access, legacy migration, import/export, learning progress,
-                        sync state, Zod schemas
+                        the study log, sync state, Zod schemas
   sync/                 The sync engine: records, merge rules, pending changes, account linking
   cloud/                Backend config checks, the auth interface, the sync wire protocol, and the
                         Supabase adapter
-  ui/                   React components: layout, pages, providers; ui/account/ for accounts
+  ui/                   React components: layout, pages, providers; ui/account/ for accounts,
+                        ui/analytics/ for the Analytics page
   test/                 Test setup and helpers (in-memory Storage, app rendering, fake backend)
   App.tsx, main.tsx     React entry point: routes and providers
 supabase/               Database migrations (tables, RLS, sync functions) and local stack config
-docs/                   Accounts and cloud sync guide
+docs/                   Accounts and cloud sync guide, learning analytics guide
 scripts/                Repository scripts (legacy and site verification, integration test runner)
 .github/workflows/      CI and GitHub Pages deployment
 ```
@@ -122,11 +127,11 @@ in-memory fake.
 
 ## Data and migration
 
-|                  | Original app                                     | Rebuild                                                                 |
-| ---------------- | ------------------------------------------------ | ----------------------------------------------------------------------- |
-| localStorage key | `abbas_flashcards_v1`                            | `snapnotes.data.v2`, plus `snapnotes.progress.v1` for learning progress |
-| Shape            | `[{ id, term, definition, created?, updated? }]` | `{ schemaVersion: 2, decks, cards }`                                    |
-| Export file      | The bare array                                   | `{ format: "snap-notes", schemaVersion: 2, exportedAt, decks, cards }`  |
+|                  | Original app                                     | Rebuild                                                                                                                          |
+| ---------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| localStorage key | `abbas_flashcards_v1`                            | `snapnotes.data.v2`, plus `snapnotes.progress.v1` for learning progress and `snapnotes.analytics.v1` for the study log and goals |
+| Shape            | `[{ id, term, definition, created?, updated? }]` | `{ schemaVersion: 2, decks, cards }`                                                                                             |
+| Export file      | The bare array                                   | `{ format: "snap-notes", schemaVersion: 2, exportedAt, decks, cards }`                                                           |
 
 The first time the rebuild opens in a browser that has cards from the original app, it moves
 them over automatically:
@@ -275,6 +280,42 @@ inside them:
   deck's page) or for **everything** (on the statistics page). Each asks first, and none of them
   touches a card, a deck or anything else you have written.
 
+## Learning analytics
+
+**Analytics** in the navigation (`#/analytics`) turns what you study into answers: how much, how
+accurately, whether you are improving, which cards and decks need attention, how consistently you
+study, and what to do next. The full guide, with every calculation and rule, is
+[docs/analytics.md](docs/analytics.md).
+
+- **Overview** for the last 7, 30 or 90 days or all time: sessions, cards reviewed, correct and
+  missed answers, accuracy, study time, average response time, current and longest streak, each
+  compared with the period before.
+- **Charts** of cards reviewed, accuracy, study time and sessions over time, with tooltips (mouse or
+  arrow keys) and a table view.
+- **Learning performance**: observed accuracy by mode, kept apart from the spaced repetition
+  schedule's _estimated_ memory strength. Accuracy is never presented as retention.
+- **Deck performance** for every deck, sortable by accuracy or cards reviewed, with the strongest and
+  weakest deck, a two-week trend and a link to each deck.
+- **Weak cards**: cards missed repeatedly (at least three answers, two of them wrong, under 60%
+  right or missed in two of the last three sessions), with the reason, and a button to practise them
+  in Learn.
+- **Study activity**: a year-long calendar heatmap, streaks and weekly summaries. A study day is a
+  local calendar day with at least one answer in any mode; today never breaks a streak before it
+  ends.
+- **Goals**: cards per day, study time per day, sessions per week and study days per week, with
+  progress and history.
+- **Recommendations**, chosen by fixed rules from your own data, each with its reason.
+- **Study history**: every session, filtered by date, deck and performance.
+
+**What is recorded.** Each Review, Quiz, Learn and Match session is recorded as you study (mode,
+deck, day, active time, answers, response times and per-card results) under a new key,
+`snapnotes.analytics.v1`. The card, progress and export formats are unchanged. Reviews from before
+this milestone count from the existing day-by-day log, without double counting; they have no time
+and are not listed as sessions. **Reset all progress** now also forgets the study sessions (goals are
+kept). Signed in, sessions and goals sync through the existing sync engine, which needs the database
+migration `supabase/migrations/20261114000000_study_analytics.sql` (additive only; see
+[docs/analytics.md](docs/analytics.md#storage-sync-and-the-database-migration)).
+
 ## Accounts and sync
 
 Accounts are optional. Signed in, everything syncs; signed out, nothing changes. In short:
@@ -293,6 +334,7 @@ Accounts are optional. Signed in, everything syncs; signed out, nothing changes.
   computer, or on every device) and deletes the account.
 - Two more keys are used: `snapnotes.sync.v1` (what the server last confirmed) and
   `snapnotes.auth.v1` (the session). The card and progress formats are unchanged.
+- Study sessions and goals (Milestone 9) sync the same way; a session is never counted twice.
 
 How it works, the database, conflict rules, security, setup and deployment are documented in
 [docs/accounts-and-sync.md](docs/accounts-and-sync.md).
