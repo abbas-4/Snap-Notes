@@ -4,6 +4,7 @@ import { AccountNavLink, SyncBanner } from './account/SyncIndicator';
 import { useAppData } from './appData';
 import MigrationNotice from './MigrationNotice';
 import { useProgress } from './progress';
+import { useStudyLog } from './studyLog';
 import { useUnsavedChanges } from './unsavedChanges';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -16,6 +17,7 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 export default function Layout() {
   const { persistenceWarning } = useAppData();
   const { progressWarning } = useProgress();
+  const { analyticsWarning } = useStudyLog();
   const { confirmLeave } = useUnsavedChanges();
 
   // Asks before navigating away from a form with unsaved changes.
@@ -56,6 +58,11 @@ export default function Layout() {
               <li>
                 <NavLink to="/review" onClick={guardNavigation} className={navLinkClass}>
                   Review
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/analytics" onClick={guardNavigation} className={navLinkClass}>
+                  Analytics
                 </NavLink>
               </li>
               <li>
@@ -103,6 +110,14 @@ export default function Layout() {
           className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900"
         >
           {progressWarning}
+        </p>
+      )}
+      {analyticsWarning && (
+        <p
+          role="alert"
+          className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900"
+        >
+          {analyticsWarning}
         </p>
       )}
       <main id="main" className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 sm:py-8">

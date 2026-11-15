@@ -1,6 +1,9 @@
 import { createDefaultDeck, DEFAULT_DECK_ID, DEFAULT_DECK_NAME } from '../domain/appData';
 import { createEmptyAppData } from '../domain/appData';
+import { mergeGoal } from '../domain/studyGoals';
+import { betterSession } from '../domain/studySessions';
 import type { Timestamp } from '../domain/types';
+import { emptyAnalytics } from '../storage/analyticsStore';
 import { emptyProgress } from '../storage/progressStore';
 import { appDataSchema, describeIssues } from '../storage/schemas';
 import { cloneBase } from './changes';
@@ -27,7 +30,9 @@ import { emptyBaseSets, type BaseSets, type RemoteRecord } from './state';
  *   with the same name as a deck in the account is treated as that deck, and
  *   a card with the same deck, term and definition as a card in the account is
  *   treated as that card, so linking a second device never doubles anything.
- *   The card's learning progress is merged into the account's copy.
+ *   The card's learning progress is merged into the account's copy. Study
+ *   sessions are joined by ID (a session is never duplicated), and goals set
+ *   on both sides keep the most recent target.
  * - **use-account**: this browser takes the account's data, and its own data
  *   is set aside (the UI offers a backup download first).
  *
@@ -61,12 +66,17 @@ export interface LinkPlan {
 
 export type LinkPlanResult = { ok: true; plan: LinkPlan } | { ok: false; message: string };
 
-/** Whether there is nothing here worth keeping: no cards, no progress, only the untouched default deck. */
+/**
+ * Whether there is nothing here worth keeping: no cards, no progress, no study
+ * history, only the untouched default deck. (Goals alone do not count: they
+ * are settings, and the account's goals are used.)
+ */
 export function isLocalEmpty(snapshot: LocalSnapshot): boolean {
   return (
     snapshot.data.cards.length === 0 &&
     snapshot.progress.records.length === 0 &&
     snapshot.progress.history.length === 0 &&
+    (snapshot.analytics?.sessions.length ?? 0) === 0 &&
     snapshot.data.decks.every(
       (deck) => deck.id === DEFAULT_DECK_ID && deck.name === DEFAULT_DECK_NAME,
     )
@@ -140,6 +150,7 @@ export function planLink(
     const empty: LocalSnapshot = {
       data: { ...createEmptyAppData(now), decks: [] },
       progress: emptyProgress(),
+      analytics: emptyAnalytics(),
     };
     return finish(snapshotFromRecords(sets, empty), base, [], report);
   }
@@ -229,6 +240,26 @@ export function planLink(
   for (const day of mine.history.values()) {
     const theirs = sets.history.get(day.day);
     sets.history.set(day.day, theirs ? mergeHistory(null, day, theirs) : day);
+  }
+
+  // Sessions follow their cards and decks to wherever they ended up, so a
+  // card matched to the account's copy keeps its history. Each card is
+  // matched to at most one account card, so results never collide.
+  for (const original of mine.session.values()) {
+    const session = {
+      ...original,
+      deckId: original.deckId === null ? null : (deckIdMap.get(original.deckId) ?? original.deckId),
+      results: original.results.map((result) => ({
+        ...result,
+        cardId: cardIdMap.get(result.cardId) ?? result.cardId,
+      })),
+    };
+    const theirs = sets.session.get(session.id);
+    sets.session.set(session.id, theirs ? betterSession(theirs, session) : session);
+  }
+  for (const goal of mine.goal.values()) {
+    const theirs = sets.goal.get(goal.id);
+    sets.goal.set(goal.id, theirs ? mergeGoal(goal, theirs) : goal);
   }
 
   const matchedCloudCards = new Set(cardIdMap.values());

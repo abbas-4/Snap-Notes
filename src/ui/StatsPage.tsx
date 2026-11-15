@@ -1,4 +1,5 @@
 import { Link } from 'react-router';
+import { streakSummary } from '../domain/analytics';
 import {
   countProgress,
   recentActivity,
@@ -18,7 +19,9 @@ import {
 } from './progressText';
 import { StageChips, StatTile } from './ProgressSummary';
 import ResetProgressPanel from './ResetProgressPanel';
+import { useStudyLog } from './studyLog';
 import { primaryButton, secondaryButton } from './styles';
+import { useAnalyticsBase } from './useAnalytics';
 import { useNow } from './useNow';
 
 /** How many days of activity the chart shows. */
@@ -34,9 +37,23 @@ const ACTIVITY_DAYS = 14;
 export default function StatsPage() {
   const { data } = useAppData();
   const { records, history, resetAll } = useProgress();
+  const { sessions, clearSessions } = useStudyLog();
+  const base = useAnalyticsBase();
   const now = useNow(true, 60_000);
 
   const stats = studyStats(records, history, now);
+  // Streaks follow one rule across the app: a day counts when anything was
+  // studied on it, in any mode (see Analytics). With only Review answers this
+  // is exactly the review log's streak.
+  const streaks = streakSummary(base, now);
+
+  // Resetting all progress also forgets the study sessions behind the
+  // streaks and analytics. Goals are settings, and are kept.
+  const resetEverything = () => {
+    const progress = resetAll();
+    if (!progress.ok) return progress;
+    return clearSessions();
+  };
   const counts = countProgress(data.cards, records, now);
   const activity = recentActivity(history, now, ACTIVITY_DAYS);
   const upcoming = upcomingReviews(records, now).filter((day) => day.count > 0);
@@ -46,9 +63,14 @@ export default function StatsPage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight">Your progress</h1>
-        <Link to="/review" className={primaryButton}>
-          Back to review
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          <Link to="/analytics" className={secondaryButton}>
+            Full analytics
+          </Link>
+          <Link to="/review" className={primaryButton}>
+            Back to review
+          </Link>
+        </div>
       </div>
 
       {stats.totalReviews === 0 ? (
@@ -91,12 +113,12 @@ export default function StatsPage() {
               />
               <StatTile
                 label="Current streak"
-                value={`${stats.currentStreak} ${stats.currentStreak === 1 ? 'day' : 'days'}`}
-                hint={stats.reviewsToday === 0 ? 'Review today to keep it' : 'Kept up today'}
+                value={`${streaks.current} ${streaks.current === 1 ? 'day' : 'days'}`}
+                hint={streaks.studiedToday ? 'Kept up today' : 'Study today to keep it'}
               />
               <StatTile
                 label="Longest streak"
-                value={`${stats.longestStreak} ${stats.longestStreak === 1 ? 'day' : 'days'}`}
+                value={`${streaks.longest} ${streaks.longest === 1 ? 'day' : 'days'}`}
                 hint="Your best run"
               />
               <StatTile
@@ -197,13 +219,14 @@ export default function StatsPage() {
           <ResetProgressPanel
             label="Reset all progress"
             question="Reset the learning progress for every card?"
-            disabled={stats.totalReviews === 0 && history.length === 0}
+            disabled={stats.totalReviews === 0 && history.length === 0 && sessions.length === 0}
             disabledHint="There is no learning progress to reset yet."
-            onReset={resetAll}
+            onReset={resetEverything}
             successMessage="All learning progress has been reset. Your cards and decks are unchanged."
           >
-            This forgets every card’s review history, your streaks and these statistics, and starts
-            every card again as new. Your cards, decks and settings are not touched.
+            This forgets every card’s review history, your study sessions, your streaks and these
+            statistics, and starts every card again as new. Your cards, decks, goals and settings
+            are not touched.
           </ResetProgressPanel>
         </div>
       </section>

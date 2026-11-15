@@ -1,1 +1,18 @@
 @import 'tailwindcss';
+
+/* A short rise-and-fade for analytics cards. Used through `motion-safe:`, so it
+   never plays for people who have asked for reduced motion. */
+@theme {
+  --animate-rise: rise 0.35s ease-out both;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}

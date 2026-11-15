@@ -17,6 +17,7 @@ import ProgressProvider from './ui/ProgressProvider';
 import QuizPage from './ui/QuizPage';
 import ReviewPage from './ui/ReviewPage';
 import StatsPage from './ui/StatsPage';
+import StudyLogProvider from './ui/StudyLogProvider';
 import StudyPage from './ui/StudyPage';
 import UnsavedChangesProvider from './ui/UnsavedChangesProvider';
 
@@ -30,6 +31,13 @@ const accountPages = {
   link: () => import('./ui/account/LinkAccountPage'),
   auth: () => import('./ui/account/AuthPages'),
 };
+
+// Analytics is the largest page and is not needed to study, so it has its own
+// bundle, fetched when the page is first opened.
+const AnalyticsPage = lazyPage(
+  () => import('./ui/analytics/AnalyticsPage'),
+  (m) => m.default,
+);
 
 function preloadAccountPages() {
   for (const load of Object.values(accountPages)) void load().catch(() => {});
@@ -60,12 +68,12 @@ const SignUpPage = lazyPage(accountPages.auth, (m) => m.SignUpPage);
 const ForgotPasswordPage = lazyPage(accountPages.auth, (m) => m.ForgotPasswordPage);
 const ResetPasswordPage = lazyPage(accountPages.auth, (m) => m.ResetPasswordPage);
 
-function Loading({ children }: { children: ReactNode }) {
+function Loading({ children, label = 'Loading…' }: { children: ReactNode; label?: string }) {
   return (
     <Suspense
       fallback={
         <p className="text-gray-600" role="status">
-          Loading…
+          {label}
         </p>
       }
     >
@@ -90,75 +98,85 @@ export default function App({ storage, cloud }: AppProps = {}) {
   return (
     <AppDataProvider storage={storage}>
       <ProgressProvider storage={storage}>
-        <CloudProvider cloud={setup} storage={storage}>
-          <UnsavedChangesProvider>
-            <Routes>
-              <Route element={<Layout />}>
-                <Route index element={<HomePage />} />
-                <Route path="list" element={<ListPage />} />
-                <Route path="decks" element={<DecksPage />} />
-                <Route path="decks/:deckId" element={<DeckPage />} />
-                <Route path="review" element={<ReviewPage />} />
-                <Route path="stats" element={<StatsPage />} />
-                <Route path="study" element={<StudyPage />} />
-                <Route path="quiz" element={<QuizPage />} />
-                <Route path="learn" element={<LearnPage />} />
-                <Route path="match" element={<MatchPage />} />
-                <Route path="add" element={<CardFormPage mode="add" />} />
-                <Route path="edit/:cardId" element={<CardFormPage mode="edit" />} />
-                <Route
-                  path="account"
-                  element={
-                    <Loading>
-                      <AccountPage />
-                    </Loading>
-                  }
-                />
-                <Route
-                  path="account/sign-in"
-                  element={
-                    <Loading>
-                      <SignInPage />
-                    </Loading>
-                  }
-                />
-                <Route
-                  path="account/sign-up"
-                  element={
-                    <Loading>
-                      <SignUpPage />
-                    </Loading>
-                  }
-                />
-                <Route
-                  path="account/forgot-password"
-                  element={
-                    <Loading>
-                      <ForgotPasswordPage />
-                    </Loading>
-                  }
-                />
-                <Route
-                  path="account/reset-password"
-                  element={
-                    <Loading>
-                      <ResetPasswordPage />
-                    </Loading>
-                  }
-                />
-                <Route
-                  path="account/link"
-                  element={
-                    <Loading>
-                      <LinkAccountPage />
-                    </Loading>
-                  }
-                />
-                <Route path="*" element={<LegacyRouteRedirect />} />
-              </Route>
-            </Routes>
-          </UnsavedChangesProvider>
-        </CloudProvider>
+        <StudyLogProvider storage={storage}>
+          <CloudProvider cloud={setup} storage={storage}>
+            <UnsavedChangesProvider>
+              <Routes>
+                <Route element={<Layout />}>
+                  <Route index element={<HomePage />} />
+                  <Route path="list" element={<ListPage />} />
+                  <Route path="decks" element={<DecksPage />} />
+                  <Route path="decks/:deckId" element={<DeckPage />} />
+                  <Route path="review" element={<ReviewPage />} />
+                  <Route path="stats" element={<StatsPage />} />
+                  <Route
+                    path="analytics"
+                    element={
+                      <Loading label="Loading analytics…">
+                        <AnalyticsPage />
+                      </Loading>
+                    }
+                  />
+                  <Route path="study" element={<StudyPage />} />
+                  <Route path="quiz" element={<QuizPage />} />
+                  <Route path="learn" element={<LearnPage />} />
+                  <Route path="match" element={<MatchPage />} />
+                  <Route path="add" element={<CardFormPage mode="add" />} />
+                  <Route path="edit/:cardId" element={<CardFormPage mode="edit" />} />
+                  <Route
+                    path="account"
+                    element={
+                      <Loading>
+                        <AccountPage />
+                      </Loading>
+                    }
+                  />
+                  <Route
+                    path="account/sign-in"
+                    element={
+                      <Loading>
+                        <SignInPage />
+                      </Loading>
+                    }
+                  />
+                  <Route
+                    path="account/sign-up"
+                    element={
+                      <Loading>
+                        <SignUpPage />
+                      </Loading>
+                    }
+                  />
+                  <Route
+                    path="account/forgot-password"
+                    element={
+                      <Loading>
+                        <ForgotPasswordPage />
+                      </Loading>
+                    }
+                  />
+                  <Route
+                    path="account/reset-password"
+                    element={
+                      <Loading>
+                        <ResetPasswordPage />
+                      </Loading>
+                    }
+                  />
+                  <Route
+                    path="account/link"
+                    element={
+                      <Loading>
+                        <LinkAccountPage />
+                      </Loading>
+                    }
+                  />
+                  <Route path="*" element={<LegacyRouteRedirect />} />
+                </Route>
+              </Routes>
+            </UnsavedChangesProvider>
+          </CloudProvider>
+        </StudyLogProvider>
       </ProgressProvider>
     </AppDataProvider>
   );

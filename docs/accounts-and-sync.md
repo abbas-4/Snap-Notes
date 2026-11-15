@@ -61,13 +61,15 @@ and against a scripted server that can fail at exact moments.
 
 One table per kind of record, each keyed by `(user_id, id)`:
 
-| Table            | Key                | Holds                                                       |
-| ---------------- | ------------------ | ----------------------------------------------------------- |
-| `decks`          | `user_id, id`      | `name`, `created_at`, `updated_at`                          |
-| `cards`          | `user_id, id`      | `deck_id`, `term`, `definition`, `created_at`, `updated_at` |
-| `card_progress`  | `user_id, card_id` | The spaced repetition record from Milestone 7               |
-| `review_history` | `user_id, day`     | Reviews and correct answers per day                         |
-| `sync_accounts`  | `user_id`          | The account's revision counter                              |
+| Table            | Key                | Holds                                                          |
+| ---------------- | ------------------ | -------------------------------------------------------------- |
+| `decks`          | `user_id, id`      | `name`, `created_at`, `updated_at`                             |
+| `cards`          | `user_id, id`      | `deck_id`, `term`, `definition`, `created_at`, `updated_at`    |
+| `card_progress`  | `user_id, card_id` | The spaced repetition record from Milestone 7                  |
+| `review_history` | `user_id, day`     | Reviews and correct answers per day                            |
+| `study_sessions` | `user_id, id`      | One study session (Milestone 9; see [analytics](analytics.md)) |
+| `study_goals`    | `user_id, id`      | One study goal and its change history (Milestone 9)            |
+| `sync_accounts`  | `user_id`          | The account's revision counter                                 |
 
 Every synced row also has:
 
@@ -88,6 +90,10 @@ must name a deck row of the same account (composite foreign key), and progress m
 existing card. Indexes on `(user_id, revision)` serve pulls.
 
 All foreign keys to `auth.users` cascade, so deleting an account deletes every row it owns.
+
+**Milestone 9** adds `study_sessions` and `study_goals` in a second, additive migration
+(`20261114000000_study_analytics.sql`), and a `kinds` parameter to `sync_pull` so that an app from
+before it is sent only the four kinds above. Details in [analytics](analytics.md#storage-sync-and-the-database-migration).
 
 **Migrating the database**: migrations are applied in filename order by
 `supabase db reset` (local) and `supabase db push` (hosted). Add a new timestamped file for any
@@ -156,7 +162,10 @@ holds a newer revision than the one the device built on. The rules (`src/sync/me
    reviewed it most recently. With no shared version (when linking), the larger count is used so
    reviews are never counted twice.
 5. **Review history adds up** per day the same way.
-6. **Decks and their cards stay consistent.** A deck deleted on one device while another device
+6. **Study sessions are joined by ID.** Each is written only by the device it happened on, so two
+   copies can differ only by how far the session had got; the one with more answers is kept.
+7. **Study goals**: the later change sets the target, and both devices' change histories are kept.
+8. **Decks and their cards stay consistent.** A deck deleted on one device while another device
    added a card to it comes back, holding that card; the server refuses to delete a deck that still
    has live cards, and refuses a live card in a deleted deck, so the devices always re-check.
 

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { RECORD_KINDS, type RecordKind } from '../sync/records';
 import type { SyncState } from '../sync/state';
+import { studyGoalSchema, studySessionSchema } from './analyticsStore';
 import { cardProgressSchema, dailyActivitySchema } from './progressStore';
 import { cardSchema, deckSchema } from './schemas';
 
@@ -29,6 +30,8 @@ const dataSchemas = {
   card: cardSchema,
   progress: cardProgressSchema,
   history: dailyActivitySchema,
+  session: studySessionSchema,
+  goal: studyGoalSchema,
 } as const;
 
 const recordSchema = z.union([deckSchema, cardSchema]);
@@ -45,6 +48,9 @@ const syncStateSchema = z.object({
     card: baseEntries(dataSchemas.card),
     progress: baseEntries(dataSchemas.progress),
     history: baseEntries(dataSchemas.history),
+    // Added in Milestone 9. Sync state saved before then has neither.
+    session: baseEntries(dataSchemas.session).optional(),
+    goal: baseEntries(dataSchemas.goal).optional(),
   }),
   conflicts: z.array(
     z.object({
@@ -93,6 +99,17 @@ export function loadSyncState(storage: Storage | null): SyncStateLoad {
   const parsed = syncStateSchema.safeParse(json);
   if (!parsed.success) {
     return { ok: false, error: 'corrupt', message: 'Saved sync information could not be read.' };
+  }
+  const { session, goal, ...base } = parsed.data.base;
+  if (session === undefined || goal === undefined) {
+    // Saved by a version of the app that did not sync study sessions or goals.
+    // The server never sent it those, yet its cursor has moved past them, so
+    // the account is read again from the start, once. Records already known
+    // are recognised by revision and skipped, so nothing is applied twice.
+    return {
+      ok: true,
+      state: { ...parsed.data, cursor: 0, base: { ...base, session: {}, goal: {} } } as SyncState,
+    };
   }
   return { ok: true, state: parsed.data as SyncState };
 }

@@ -1,6 +1,9 @@
 import type { DailyActivity } from '../domain/progressStats';
 import type { CardProgress } from '../domain/srs';
+import { compactSessions, dedupeSessions, type StudySession } from '../domain/studySessions';
+import { sortGoals, type StudyGoal } from '../domain/studyGoals';
 import { SCHEMA_VERSION, type AppData, type Card, type Deck } from '../domain/types';
+import { ANALYTICS_VERSION, emptyAnalytics, type AnalyticsData } from '../storage/analyticsStore';
 import {
   normalizeHistory,
   PROGRESS_VERSION,
@@ -11,17 +14,26 @@ import {
 /**
  * The records that sync between devices.
  *
- * Everything the app keeps is split into four kinds of record, each with a
+ * Everything the app keeps is split into six kinds of record, each with a
  * stable ID: decks and cards (by their own IDs), learning progress (by the
- * card it belongs to) and the review log (by day). Each kind is synced on its
- * own, so a review on one device and an edit to the same card on another never
- * get in each other's way.
+ * card it belongs to), the review log (by day), study sessions (by their own
+ * IDs) and study goals (by kind). Each kind is synced on its own, so a review
+ * on one device and an edit to the same card on another never get in each
+ * other's way.
  *
  * The migration notice is not synced: it describes what happened in one
  * browser, and means nothing on another.
  */
 
-export const RECORD_KINDS = ['deck', 'card', 'progress', 'history'] as const;
+export const RECORD_KINDS = ['deck', 'card', 'progress', 'history', 'session', 'goal'] as const;
+
+/**
+ * The kinds every version of the app with sync understands. The server sends
+ * an older app only these (see `sync_pull`), and a device that synced before
+ * the newer kinds existed reads the account again from the start once, to
+ * pick up the ones it skipped (see `loadSyncState`).
+ */
+export const ORIGINAL_RECORD_KINDS = ['deck', 'card', 'progress', 'history'] as const;
 
 export type RecordKind = (typeof RECORD_KINDS)[number];
 
@@ -30,22 +42,33 @@ export interface RecordTypes {
   card: Card;
   progress: CardProgress;
   history: DailyActivity;
+  session: StudySession;
+  goal: StudyGoal;
 }
 
 /** One record of any kind. */
 export type AnyRecord = RecordTypes[RecordKind];
 
-/** Everything kept on this device, in the two shapes the app stores it in. */
+/** Everything kept on this device, in the shapes the app stores it in. */
 export interface LocalSnapshot {
   data: AppData;
   progress: ProgressData;
+  /** The study log and goals. Left out, there are none. */
+  analytics?: AnalyticsData;
 }
 
 /** Records by kind, then by ID. */
 export type RecordSets = { [K in RecordKind]: Map<string, RecordTypes[K]> };
 
 export function emptyRecordSets(): RecordSets {
-  return { deck: new Map(), card: new Map(), progress: new Map(), history: new Map() };
+  return {
+    deck: new Map(),
+    card: new Map(),
+    progress: new Map(),
+    history: new Map(),
+    session: new Map(),
+    goal: new Map(),
+  };
 }
 
 export function recordId<K extends RecordKind>(kind: K, record: RecordTypes[K]): string {
@@ -55,7 +78,7 @@ export function recordId<K extends RecordKind>(kind: K, record: RecordTypes[K]):
     case 'history':
       return (record as DailyActivity).day;
     default:
-      return (record as Deck | Card).id;
+      return (record as Deck | Card | StudySession | StudyGoal).id;
   }
 }
 
@@ -65,6 +88,9 @@ export function recordsFromSnapshot(snapshot: LocalSnapshot): RecordSets {
   for (const card of snapshot.data.cards) sets.card.set(card.id, card);
   for (const record of snapshot.progress.records) sets.progress.set(record.cardId, record);
   for (const day of snapshot.progress.history) sets.history.set(day.day, day);
+  const analytics = snapshot.analytics ?? emptyAnalytics();
+  for (const session of analytics.sessions) sets.session.set(session.id, session);
+  for (const goal of analytics.goals) sets.goal.set(goal.id, goal);
   return sets;
 }
 
@@ -86,12 +112,20 @@ export function snapshotFromRecords(sets: RecordSets, previous: LocalSnapshot): 
   );
   const data: AppData = { schemaVersion: SCHEMA_VERSION, decks, cards };
   const records = reconcileProgress([...sets.progress.values()], data).records;
+  // Sessions are kept even when their cards or decks are gone: the study
+  // happened, and the analytics account for it.
+  const sessions = compactSessions(dedupeSessions([...sets.session.values()]).sessions).sessions;
   return {
     data,
     progress: {
       version: PROGRESS_VERSION,
       records,
       history: normalizeHistory([...sets.history.values()]),
+    },
+    analytics: {
+      version: ANALYTICS_VERSION,
+      sessions,
+      goals: sortGoals([...sets.goal.values()]),
     },
   };
 }
@@ -142,9 +176,30 @@ export function canonical<K extends RecordKind>(kind: K, record: RecordTypes[K])
         p.streak,
       ]);
     }
-    default: {
+    case 'history': {
       const h = record as DailyActivity;
       return JSON.stringify([h.day, h.reviews, h.correct]);
+    }
+    case 'session': {
+      const s = record as StudySession;
+      return JSON.stringify([
+        s.id,
+        s.mode,
+        s.deckId,
+        s.day,
+        s.startedAt,
+        s.endedAt,
+        s.durationMs,
+        s.answered,
+        s.correct,
+        s.responseMs,
+        s.timedAnswers,
+        s.results.map((r) => [r.cardId, r.correct, r.incorrect]),
+      ]);
+    }
+    default: {
+      const g = record as StudyGoal;
+      return JSON.stringify([g.id, g.target, g.updatedAt, g.changes.map((c) => [c.at, c.target])]);
     }
   }
 }
@@ -186,9 +241,39 @@ export function cleanRecord<K extends RecordKind>(kind: K, record: RecordTypes[K
         streak: p.streak,
       } as RecordTypes[K];
     }
-    default: {
+    case 'history': {
       const { day, reviews, correct } = record as DailyActivity;
       return { day, reviews, correct } as RecordTypes[K];
+    }
+    case 'session': {
+      const s = record as StudySession;
+      return {
+        id: s.id,
+        mode: s.mode,
+        deckId: s.deckId,
+        day: s.day,
+        startedAt: s.startedAt,
+        endedAt: s.endedAt,
+        durationMs: s.durationMs,
+        answered: s.answered,
+        correct: s.correct,
+        responseMs: s.responseMs,
+        timedAnswers: s.timedAnswers,
+        results: s.results.map(({ cardId, correct, incorrect }) => ({
+          cardId,
+          correct,
+          incorrect,
+        })),
+      } as RecordTypes[K];
+    }
+    default: {
+      const g = record as StudyGoal;
+      return {
+        id: g.id,
+        target: g.target,
+        updatedAt: g.updatedAt,
+        changes: g.changes.map(({ at, target }) => ({ at, target })),
+      } as RecordTypes[K];
     }
   }
 }

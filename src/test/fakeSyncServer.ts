@@ -1,3 +1,4 @@
+import { studyGoalSchema, studySessionSchema } from '../storage/analyticsStore';
 import { cardProgressSchema, dailyActivitySchema } from '../storage/progressStore';
 import { cardSchema, deckSchema } from '../storage/schemas';
 import type { SyncTransport } from '../sync/engine';
@@ -23,6 +24,8 @@ const schemas = {
   card: cardSchema,
   progress: cardProgressSchema,
   history: dailyActivitySchema,
+  session: studySessionSchema,
+  goal: studyGoalSchema,
 };
 
 export type FailureMode = 'network' | 'server' | 'auth';
@@ -41,6 +44,8 @@ export class FakeSyncServer {
     card: new Map(),
     progress: new Map(),
     history: new Map(),
+    session: new Map(),
+    goal: new Map(),
   };
   pageSize = 500;
   pulls = 0;

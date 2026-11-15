@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, type RefObject } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import {
   currentLearnCard,
   isLearnEligible,
@@ -18,17 +18,35 @@ import DeckScopeNotice from './DeckScopeNotice';
 import EmptyState from './EmptyState';
 import { activatesFocusedControl, isShortcutBlocked } from './keyboard';
 import ProgressBar from './ProgressBar';
+import { useSessionRecorder, useShownAt } from './studyLog';
 import { cautionButton, primaryButton, secondaryButton, successButton } from './styles';
+import { useWeakCards } from './useAnalytics';
 import { useFocusOnChange } from './useFocusOnChange';
 
 const focusRing =
   'rounded focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-600';
 
+/** `?focus=weak` narrows Learn to the cards Analytics lists as weak. */
+export const FOCUS_PARAM = 'focus';
+
 export default function LearnPage() {
-  const { deck, deckId, unknownDeck, cards } = useDeckScope();
+  const scope = useDeckScope();
+  const { deck, deckId, unknownDeck } = scope;
+  const weakOnly = useSearchParams()[0].get(FOCUS_PARAM) === 'weak';
+  const weakCards = useWeakCards(deck ? deck.id : null);
 
   if (unknownDeck) return <DeckNotFound />;
 
+  if (weakOnly)
+    return (
+      <WeakCardsLearn
+        deckName={deck?.name ?? null}
+        deckId={deckId}
+        cards={weakCards.map((weak) => weak.card)}
+      />
+    );
+
+  const { cards } = scope;
   const eligible = cards.filter(isLearnEligible).length;
 
   if (eligible === 0) {
@@ -50,12 +68,64 @@ export default function LearnPage() {
   return (
     <>
       {deck && <DeckScopeNotice deck={deck} />}
-      <LearnSession cards={cards} />
+      <LearnSession cards={cards} deckId={deck?.id ?? null} />
     </>
   );
 }
 
-function LearnSession({ cards }: { cards: readonly Card[] }) {
+/** Learn, on only the cards the user keeps getting wrong. */
+function WeakCardsLearn({
+  cards,
+  deckId,
+  deckName,
+}: {
+  cards: Card[];
+  deckId: string | null;
+  deckName: string | null;
+}) {
+  const eligible = cards.filter(isLearnEligible);
+  const notice = (
+    <div className="mb-6 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-950">
+      <p>
+        <strong>Practising weak cards</strong>
+        {deckName ? ` in ${deckName}` : ''}: the cards you have answered wrongly most often.{' '}
+        <Link to="/analytics#weak-cards" className="font-semibold underline">
+          See why on Analytics
+        </Link>
+      </p>
+    </div>
+  );
+  if (eligible.length === 0) {
+    return (
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Learn</h1>
+        <div className="mt-6 rounded-xl border border-dashed border-gray-300 bg-white p-6">
+          <h2 className="font-semibold">No weak cards right now</h2>
+          <p className="mt-1 text-sm text-gray-600">
+            A card is listed as weak once you have answered it at least three times and missed it
+            more than once. Keep studying and any card you struggle with will show up here.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link to={withDeck('/learn', deckId)} className={primaryButton}>
+              {deckName ? `Learn ${deckName}` : 'Learn all cards'}
+            </Link>
+            <Link to="/analytics" className={secondaryButton}>
+              Back to analytics
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <>
+      {notice}
+      <LearnSession cards={eligible} deckId={deckId} />
+    </>
+  );
+}
+
+function LearnSession({ cards, deckId }: { cards: readonly Card[]; deckId: string | null }) {
   const [state, dispatch] = useReducer(learnReducer, cards, (initial) =>
     startLearn(prepareLearnCards(initial)),
   );
@@ -64,6 +134,27 @@ function LearnSession({ cards }: { cards: readonly Card[] }) {
   const card = currentLearnCard(state);
   const total = state.cards.length;
   const masteredCount = state.mastered.length;
+
+  // Each grade goes into the study log: "know it" counts as correct, "still
+  // learning" as missed. A new round is a new session.
+  const recorder = useSessionRecorder('learn', deckId);
+  const shownAt = useShownAt(`${sessionId}:${turn}`);
+  const logged = useRef({ sessionId, turn });
+  useEffect(() => {
+    if (logged.current.sessionId !== state.sessionId) {
+      logged.current = { sessionId: state.sessionId, turn: state.turn };
+      recorder.restart();
+      return;
+    }
+    if (state.turn > logged.current.turn && state.lastGrade) {
+      recorder.record({
+        cardId: state.lastGrade.cardId,
+        correct: state.lastGrade.knew,
+        shownAt: shownAt(`${state.sessionId}:${state.turn - 1}`),
+      });
+    }
+    logged.current.turn = Math.max(logged.current.turn, state.turn);
+  }, [recorder, shownAt, state]);
 
   const termRef = useRef<HTMLHeadingElement>(null);
   const definitionRef = useRef<HTMLDivElement>(null);

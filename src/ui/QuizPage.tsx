@@ -21,6 +21,7 @@ import { useDeckScope, withDeck } from './deckScope';
 import DeckScopeNotice from './DeckScopeNotice';
 import { activatesFocusedControl, isShortcutBlocked } from './keyboard';
 import ProgressBar from './ProgressBar';
+import { useSessionRecorder, useShownAt } from './studyLog';
 import { primaryButton, secondaryButton } from './styles';
 
 export default function QuizPage() {
@@ -32,12 +33,12 @@ export default function QuizPage() {
   return (
     <>
       {deck && <DeckScopeNotice deck={deck} />}
-      <QuizSession cards={cards} />
+      <QuizSession cards={cards} deckId={deck?.id ?? null} />
     </>
   );
 }
 
-function QuizSession({ cards }: { cards: readonly Card[] }) {
+function QuizSession({ cards, deckId }: { cards: readonly Card[]; deckId: string | null }) {
   const [state, dispatch] = useReducer(quizReducer, cards, (initial) =>
     startQuiz(buildQuizQuestions(initial)),
   );
@@ -45,6 +46,29 @@ function QuizSession({ cards }: { cards: readonly Card[] }) {
   const { sessionId, index } = state;
   const question = state.questions[index];
   const choiceCount = question?.choices.length ?? 0;
+
+  // Every answer the quiz accepts goes into the study log; a restarted quiz
+  // is a new session. Answers are read from the quiz's own state, so only
+  // answers it actually recorded are logged, each exactly once.
+  const recorder = useSessionRecorder('quiz', deckId);
+  const shownAt = useShownAt(`${sessionId}:${index}`);
+  const logged = useRef({ sessionId, count: 0 });
+  useEffect(() => {
+    if (logged.current.sessionId !== state.sessionId) {
+      logged.current = { sessionId: state.sessionId, count: 0 };
+      recorder.restart();
+    }
+    const results = quizResults(state);
+    for (let i = logged.current.count; i < results.length; i += 1) {
+      const result = results[i] as (typeof results)[number];
+      recorder.record({
+        cardId: result.question.cardId,
+        correct: result.isCorrect,
+        shownAt: shownAt(`${state.sessionId}:${i}`),
+      });
+    }
+    logged.current.count = Math.max(logged.current.count, results.length);
+  }, [recorder, shownAt, state]);
 
   const questionRef = useRef<HTMLHeadingElement>(null);
   const nextRef = useRef<HTMLButtonElement>(null);
