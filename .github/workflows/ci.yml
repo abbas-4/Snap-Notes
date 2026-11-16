@@ -24,6 +24,8 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
       - run: npm run typecheck
+      # The Edge Function's entry point, type-checked by Deno itself.
+      - run: npm run check:functions
       - run: npm test
       - run: npm run build
 
@@ -48,8 +50,9 @@ jobs:
       - name: Start Supabase
         run: npm run db:start
 
-      # Accounts, password recovery, sync between two devices, conflicts, and Row Level Security,
-      # all against the real services. Uses the stack's fixed local development keys only.
+      # Accounts, password recovery, sync between two devices, conflicts, Row Level Security, and
+      # the AI generation allowance and Edge Function, all against the real services. Uses the
+      # stack's fixed local development keys only; no AI provider key is configured.
       - run: npm run test:integration
 
       - name: Stop Supabase

@@ -4,3 +4,6 @@ legacy/
 dist/
 coverage/
 package-lock.json
+
+# Written by Deno: pins the Edge Functions' dependencies.
+supabase/functions/**/deno.lock

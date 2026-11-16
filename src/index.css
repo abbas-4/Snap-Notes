@@ -15,4 +15,16 @@
       transform: none;
     }
   }
+
+  /* The indeterminate bar shown while cards are being generated. */
+  --animate-generate-progress: generate-progress 1.4s ease-in-out infinite;
+
+  @keyframes generate-progress {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(300%);
+    }
+  }
 }

@@ -1,5 +1,6 @@
 import type { MouseEvent } from 'react';
 import { NavLink, Outlet } from 'react-router';
+import { useOptionalAuth } from './account/cloud';
 import { AccountNavLink, SyncBanner } from './account/SyncIndicator';
 import { useAppData } from './appData';
 import MigrationNotice from './MigrationNotice';
@@ -19,6 +20,9 @@ export default function Layout() {
   const { progressWarning } = useProgress();
   const { analyticsWarning } = useStudyLog();
   const { confirmLeave } = useUnsavedChanges();
+  // AI generation runs on the Snap Notes server, so a build without one leaves it out.
+  const auth = useOptionalAuth();
+  const canGenerate = auth !== null && auth.status !== 'disabled';
 
   // Asks before navigating away from a form with unsaved changes.
   const guardNavigation = (event: MouseEvent) => {
@@ -90,6 +94,13 @@ export default function Layout() {
                   Add card
                 </NavLink>
               </li>
+              {canGenerate && (
+                <li>
+                  <NavLink to="/generate" onClick={guardNavigation} className={navLinkClass}>
+                    Generate
+                  </NavLink>
+                </li>
+              )}
               <AccountNavLink onClick={guardNavigation} />
             </ul>
           </nav>

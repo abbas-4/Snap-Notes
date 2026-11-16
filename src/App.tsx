@@ -39,6 +39,13 @@ const AnalyticsPage = lazyPage(
   (m) => m.default,
 );
 
+// Generating cards needs an account and the network anyway, so it has its own
+// bundle too; PDF.js is a further bundle, fetched only when a PDF is chosen.
+const GeneratePage = lazyPage(
+  () => import('./ui/generate/GeneratePage'),
+  (m) => m.default,
+);
+
 function preloadAccountPages() {
   for (const load of Object.values(accountPages)) void load().catch(() => {});
 }
@@ -114,6 +121,14 @@ export default function App({ storage, cloud }: AppProps = {}) {
                     element={
                       <Loading label="Loading analytics…">
                         <AnalyticsPage />
+                      </Loading>
+                    }
+                  />
+                  <Route
+                    path="generate"
+                    element={
+                      <Loading>
+                        <GeneratePage />
                       </Loading>
                     }
                   />

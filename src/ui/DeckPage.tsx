@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { cardCountByDeck } from '../domain/deckOps';
 import { countProgress } from '../domain/progressStats';
+import { useOptionalAuth } from './account/cloud';
 import { useAppData } from './appData';
 import DeckNameForm from './DeckNameForm';
 import { reviewLink } from './deckScope';
@@ -38,6 +39,9 @@ function DeckDetail({ deckId }: { deckId: string }) {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  // AI generation runs on the Snap Notes server, so a build without one leaves the link out.
+  const auth = useOptionalAuth();
+  const canGenerate = auth !== null && auth.status !== 'disabled';
   const [chosen, setChosen] = useState<string | null>(null);
 
   const deck = data.decks.find((d) => d.id === deckId);
@@ -99,6 +103,11 @@ function DeckDetail({ deckId }: { deckId: string }) {
           <Link to={`/list${scoped}`} className={secondaryButton}>
             Browse these cards
           </Link>
+          {canGenerate && (
+            <Link to={`/generate${scoped}`} className={secondaryButton}>
+              Generate cards with AI
+            </Link>
+          )}
         </div>
       </div>
 
