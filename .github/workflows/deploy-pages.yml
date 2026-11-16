@@ -26,7 +26,8 @@ permissions:
   contents: read
 
 env:
-  PUBLISH: legacy
+  # Milestone 5 cutover: the React app is live. Set back to `legacy` to roll back.
+  PUBLISH: app
 
 jobs:
   build:
