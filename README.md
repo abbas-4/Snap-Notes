@@ -23,22 +23,23 @@ document into flashcards with AI, which you review and edit before saving.
 
 The original app is a single HTML file ([`legacy/index.html`](legacy/index.html)) that keeps
 cards in the browser's `localStorage`. It is being rebuilt as a typed, tested React application,
-one small milestone at a time. **The live site still serves the original app, unchanged.** The
-rebuild has reached feature parity and can migrate existing cards safely; the last step of
-Milestone 5 is the switch that publishes it at the same address (see [Deployment](#deployment)).
+one small milestone at a time. **The live site serves the rebuild** (Milestone 5 cutover), and
+moves each browser's existing cards over on its first visit. The original app is still published,
+unchanged, at [`/legacy/index.html`](https://abbas-4.github.io/Snap-Notes/legacy/index.html), and
+rolling back is a one-line change (see [Deployment](#deployment)).
 
-| Milestone | Scope                                                                                | Status                                               |
-| --------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------- |
-| 1         | Tooling, domain types, storage layer, `migrateV1()`, import/export validation, CI    | ✅ Done                                              |
-| 2         | React UI: layout, navigation, Home, List, Add/Edit, import/export                    | ✅ Done                                              |
-| 3         | Study and Quiz modes (keyboard accessible, no timing races)                          | ✅ Done                                              |
-| 4         | Learn and Match modes                                                                | ✅ Done                                              |
-| 5         | Cutover: deploy the new app at the same URL, migrate data on first load, smoke tests | 🚧 Migration and recovery built; site switch pending |
-| 6         | Decks: create, rename, delete, move cards between decks, and study one deck          | ✅ Done                                              |
-| 7         | Spaced repetition, saved learning progress, review dashboard and statistics          | ✅ Done                                              |
-| 8         | Accounts, cloud sync across devices, offline queue, conflicts, data migration        | ✅ Done                                              |
-| 9         | Learning analytics: dashboard, charts, decks, weak cards, streaks, goals, history    | ✅ Done                                              |
-| 10        | AI flashcard generation: text, PDF and Word input, review before saving              | ✅ Done (needs a provider key on the server)         |
+| Milestone | Scope                                                                                | Status                                       |
+| --------- | ------------------------------------------------------------------------------------ | -------------------------------------------- |
+| 1         | Tooling, domain types, storage layer, `migrateV1()`, import/export validation, CI    | ✅ Done                                      |
+| 2         | React UI: layout, navigation, Home, List, Add/Edit, import/export                    | ✅ Done                                      |
+| 3         | Study and Quiz modes (keyboard accessible, no timing races)                          | ✅ Done                                      |
+| 4         | Learn and Match modes                                                                | ✅ Done                                      |
+| 5         | Cutover: deploy the new app at the same URL, migrate data on first load, smoke tests | ✅ Done                                      |
+| 6         | Decks: create, rename, delete, move cards between decks, and study one deck          | ✅ Done                                      |
+| 7         | Spaced repetition, saved learning progress, review dashboard and statistics          | ✅ Done                                      |
+| 8         | Accounts, cloud sync across devices, offline queue, conflicts, data migration        | ✅ Done                                      |
+| 9         | Learning analytics: dashboard, charts, decks, weak cards, streaks, goals, history    | ✅ Done                                      |
+| 10        | AI flashcard generation: text, PDF and Word input, review before saving              | ✅ Done (needs a provider key on the server) |
 
 Everything still works entirely in the browser. Accounts are optional and need a backend
 (Supabase: PostgreSQL and its auth server); without one, the build is the local-only app. See
@@ -375,10 +376,10 @@ publishes the repository root instead, which is a blank page).
 
 One value in that workflow, `PUBLISH`, decides what the site serves:
 
-| `PUBLISH` | Site root                                 | `/legacy/index.html` |
-| --------- | ----------------------------------------- | -------------------- |
-| `legacy`  | The original app, byte-for-byte (current) | Not published        |
-| `app`     | The React build from `dist/`              | The original app     |
+| `PUBLISH` | Site root                              | `/legacy/index.html` |
+| --------- | -------------------------------------- | -------------------- |
+| `legacy`  | The original app, byte-for-byte        | Not published        |
+| `app`     | The React build from `dist/` (current) | The original app     |
 
 Every run tests and builds the React app and checks that the build is deployable, whichever
 value is set. On pull requests the site is only assembled and verified; it deploys only from
