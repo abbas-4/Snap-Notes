@@ -1,4 +1,6 @@
 import type { Session, SupabaseClient, User } from '@supabase/supabase-js';
+import type { z } from 'zod';
+import type { GenerateRequest } from '../../supabase/functions/_shared/flashcards/contract.ts';
 import type { SyncTransport } from '../sync/engine';
 import { RECORD_KINDS } from '../sync/records';
 import type { PushChange } from '../sync/state';
@@ -14,6 +16,16 @@ import {
   type RedirectOutcome,
 } from './auth';
 import type { CloudConfig } from './config';
+import {
+  CANCELLED,
+  GENERATION_TIMEOUT_MS,
+  NETWORK_FAILURE,
+  readGenerationReply,
+  replySchemas,
+  TIMEOUT_FAILURE,
+  type GenerationClient,
+  type GenerationResult,
+} from './generation';
 import { classifyRpcFailure, parsePullPage, parsePushResults } from './syncProtocol';
 
 /**
@@ -26,6 +38,8 @@ export interface CloudServices {
   config: CloudConfig;
   auth: AuthClient;
   transport: SyncTransport;
+  /** AI flashcard generation through the `generate-flashcards` Edge Function. */
+  generation: GenerationClient;
 }
 
 /** Namespaced, because every project on abbas-4.github.io shares one localStorage. */
@@ -65,6 +79,7 @@ export async function createSupabaseServices(
     config,
     auth: new SupabaseAuthClient(client, config, options.storage ?? null),
     transport: new SupabaseSyncTransport(client),
+    generation: new SupabaseGenerationClient(client),
   };
 }
 
@@ -270,5 +285,58 @@ class SupabaseSyncTransport implements SyncTransport {
       .abortSignal(AbortSignal.timeout(REQUEST_TIMEOUT_MS));
     if (error) throw classifyRpcFailure({ status, code: error.code, message: error.message });
     return parsePushResults(data);
+  }
+}
+
+/**
+ * Calls the `generate-flashcards` Edge Function. The client library sends the
+ * signed-in user's access token with every call; the function refuses anything
+ * else. Every reply is validated before the app uses it.
+ */
+class SupabaseGenerationClient implements GenerationClient {
+  private readonly client: SupabaseClient;
+
+  constructor(client: SupabaseClient) {
+    this.client = client;
+  }
+
+  private async invoke<T>(
+    schema: z.ZodType<T>,
+    body: object,
+    signal?: AbortSignal,
+  ): Promise<GenerationResult<T>> {
+    const timeout = AbortSignal.timeout(GENERATION_TIMEOUT_MS);
+    const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
+    const lost = () =>
+      signal?.aborted ? CANCELLED : timeout.aborted ? TIMEOUT_FAILURE : NETWORK_FAILURE;
+    try {
+      const { data, error } = await this.client.functions.invoke('generate-flashcards', {
+        body,
+        signal: combined,
+      });
+      if (!error) return readGenerationReply(schema, 200, data);
+      // An answer from the function (or the gateway in front of it) carries its response.
+      const context: unknown = (error as { context?: unknown }).context;
+      if (context instanceof Response) {
+        let json: unknown = null;
+        try {
+          json = await context.json();
+        } catch {
+          // Not JSON: classified by status alone.
+        }
+        return readGenerationReply(schema, context.status, json);
+      }
+      return lost();
+    } catch {
+      return lost();
+    }
+  }
+
+  status() {
+    return this.invoke(replySchemas.status, { action: 'status' });
+  }
+
+  generate(request: GenerateRequest, signal?: AbortSignal) {
+    return this.invoke(replySchemas.generate, request, signal);
   }
 }

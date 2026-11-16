@@ -380,8 +380,9 @@ authorization_url_path = "/oauth/consent"
 allow_dynamic_registration = false
 
 [edge_runtime]
-# No Edge Functions: every server-side rule lives in Postgres (see supabase/migrations).
-enabled = false
+# One Edge Function, generate-flashcards (supabase/functions), for AI card generation. Every
+# other server-side rule lives in Postgres (see supabase/migrations).
+enabled = true
 # Supported request policies: `oneshot`, `per_worker`.
 # `per_worker` (default) — enables hot reload during local development.
 # `oneshot` — fallback mode if hot reload causes issues (e.g. in large repos or with symlinks).
@@ -393,6 +394,12 @@ deno_version = 2
 
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
+
+[functions.generate-flashcards]
+# The function authenticates every request itself, before doing anything else, by asking the auth
+# server about the caller's token (and the database checks it again when counting the request).
+# The gateway's own check is off because it does not support asymmetric JWT signing keys.
+verify_jwt = false
 
 [analytics]
 enabled = false

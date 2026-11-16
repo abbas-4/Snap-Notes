@@ -14,7 +14,8 @@ review them in five modes:
 Cards are kept in **decks**, so a subject can be studied on its own. **Analytics** shows how much
 and how well you study, which cards and decks need attention, your streaks and goals, and what to
 study next. With an optional **account**, cards, decks, learning progress, study history and goals
-sync across devices, and keep working offline.
+sync across devices, and keep working offline. Signed in, **Generate** turns notes, a PDF or a Word
+document into flashcards with AI, which you review and edit before saving.
 
 **Live app:** <https://abbas-4.github.io/Snap-Notes/>
 
@@ -37,6 +38,7 @@ Milestone 5 is the switch that publishes it at the same address (see [Deployment
 | 7         | Spaced repetition, saved learning progress, review dashboard and statistics          | ✅ Done                                              |
 | 8         | Accounts, cloud sync across devices, offline queue, conflicts, data migration        | ✅ Done                                              |
 | 9         | Learning analytics: dashboard, charts, decks, weak cards, streaks, goals, history    | ✅ Done                                              |
+| 10        | AI flashcard generation: text, PDF and Word input, review before saving              | ✅ Done (needs a provider key on the server)         |
 
 Everything still works entirely in the browser. Accounts are optional and need a backend
 (Supabase: PostgreSQL and its auth server); without one, the build is the local-only app. See
@@ -91,6 +93,7 @@ To try the original app locally, open `legacy/index.html` in a browser.
 | `npm run lint`                    | Lint with ESLint                                            |
 | `npm run format` / `format:check` | Format with Prettier / check formatting                     |
 | `npm run typecheck`               | Type-check with `tsc`                                       |
+| `npm run check:functions`         | Type-check the Edge Function with Deno                      |
 | `npm run build`                   | Type-check and build into `dist/`                           |
 | `npm run verify:legacy`           | Confirm `legacy/index.html` is byte-for-byte the original   |
 | `npm run verify:site -- <dir>`    | Check an assembled site (or `--url` for the live one)       |
@@ -105,18 +108,20 @@ legacy/index.html       The original app, preserved unchanged and served on GitH
 src/
   domain/               Pure TypeScript: data types, IDs, shuffle, quiz and match rounds, mode
                         sessions, the spaced repetition engine, review queues and statistics,
-                        the study log, goals, analytics and recommendations
+                        the study log, goals, analytics and recommendations, generated cards
+  documents/            Text, PDF and Word (.docx) extraction, in the browser
   storage/              localStorage access, legacy migration, import/export, learning progress,
                         the study log, sync state, Zod schemas
   sync/                 The sync engine: records, merge rules, pending changes, account linking
-  cloud/                Backend config checks, the auth interface, the sync wire protocol, and the
-                        Supabase adapter
+  cloud/                Backend config checks, the auth interface, the sync wire protocol, the
+                        generation client, and the Supabase adapter
   ui/                   React components: layout, pages, providers; ui/account/ for accounts,
-                        ui/analytics/ for the Analytics page
+                        ui/analytics/ for the Analytics page, ui/generate/ for AI generation
   test/                 Test setup and helpers (in-memory Storage, app rendering, fake backend)
   App.tsx, main.tsx     React entry point: routes and providers
-supabase/               Database migrations (tables, RLS, sync functions) and local stack config
-docs/                   Accounts and cloud sync guide, learning analytics guide
+supabase/               Database migrations (tables, RLS, sync functions, the AI allowance), the
+                        generate-flashcards Edge Function (functions/), and local stack config
+docs/                   Accounts and cloud sync, learning analytics, and AI generation guides
 scripts/                Repository scripts (legacy and site verification, integration test runner)
 .github/workflows/      CI and GitHub Pages deployment
 ```
@@ -315,6 +320,29 @@ and are not listed as sessions. **Reset all progress** now also forgets the stud
 kept). Signed in, sessions and goals sync through the existing sync engine, which needs the database
 migration `supabase/migrations/20261114000000_study_analytics.sql` (additive only; see
 [docs/analytics.md](docs/analytics.md#storage-sync-and-the-database-migration)).
+
+## AI flashcard generation
+
+**Generate** in the navigation (`#/generate`, or _Generate cards with AI_ on a deck) turns study
+material into flashcards. The full guide is [docs/ai-generation.md](docs/ai-generation.md).
+
+- **Material:** paste up to 30,000 characters, read a `.txt`, `.md`, `.pdf` or `.docx` file (read
+  on the device; the file is never uploaded), or use a deck's existing cards.
+- **Settings:** question and answer, term and definition, multiple choice, fill in the blank, or
+  mixed; easy, medium, hard or mixed; 5–30 cards; an existing or new deck.
+- **Review before saving:** edit any card, change its type, regenerate it, remove it, generate more,
+  and choose which to save. Nothing is saved automatically, and saving twice never duplicates.
+- **Saved cards are ordinary cards** (multiple-choice options are written into the term), so they
+  sync, enter spaced repetition as new cards, and count in Analytics like any other.
+- **On the server:** a Supabase Edge Function checks the user's session, counts the request
+  against a per-account allowance in Postgres (20 an hour, 60 a day), sends the material to the AI
+  provider with the key kept in the project's secrets, and checks every card it gets back
+  (grounded in the material, complete, not a duplicate). Material is treated as data, never as
+  instructions, and is never stored or logged.
+- **Setup:** generation needs an account, the migration
+  `supabase/migrations/20261116000000_ai_generation_quota.sql`, the deployed function, and an
+  `ANTHROPIC_API_KEY` secret. Without a key the page says generation is not set up. See
+  [Setting up a provider](docs/ai-generation.md#setting-up-a-provider).
 
 ## Accounts and sync
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createDefaultDeck, createEmptyAppData, DEFAULT_DECK_ID } from '../domain/appData';
 import * as deckOps from '../domain/deckOps';
+import { addCards as addCardsTo, type CardText, type SaveTarget } from '../domain/generatedCards';
 import { createId } from '../domain/ids';
 import type { AppData, Card } from '../domain/types';
 import {
@@ -27,6 +28,7 @@ import {
 } from '../storage/migrationRecord';
 import {
   AppDataContext,
+  type AddCardsOutcome,
   type AppDataValue,
   type CardInput,
   type ImportOutcome,
@@ -212,6 +214,17 @@ export default function AppDataProvider({ storage, children }: AppDataProviderPr
     [commit],
   );
 
+  const addCards = useCallback(
+    (target: SaveTarget, cards: readonly CardText[]): AddCardsOutcome => {
+      const result = addCardsTo(dataRef.current, target, cards);
+      if (!result.ok) return result;
+      const committed = commit(result.data);
+      if (!committed.ok) return committed;
+      return { ok: true, deckId: result.deckId, cardIds: result.cardIds };
+    },
+    [commit],
+  );
+
   const updateCard = useCallback(
     (id: string, input: CardInput): WriteResult => {
       const data = dataRef.current;
@@ -381,6 +394,7 @@ export default function AppDataProvider({ storage, children }: AppDataProviderPr
       legacyRawData,
       importFromLegacy,
       addCard,
+      addCards,
       updateCard,
       deleteCard,
       createDeck,
@@ -401,6 +415,7 @@ export default function AppDataProvider({ storage, children }: AppDataProviderPr
       legacyRawData,
       importFromLegacy,
       addCard,
+      addCards,
       updateCard,
       deleteCard,
       createDeck,

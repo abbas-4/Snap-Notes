@@ -1,9 +1,13 @@
 import { createContext, useContext } from 'react';
+import type { CardText, SaveTarget } from '../domain/generatedCards';
 import type { AppData } from '../domain/types';
 import type { MergeReport } from '../storage/importExport';
 import type { MigrationRecord } from '../storage/migrationRecord';
 
 export type WriteResult = { ok: true } | { ok: false; message: string };
+
+export type AddCardsOutcome =
+  { ok: true; deckId: string; cardIds: (string | null)[] } | { ok: false; message: string };
 
 export type ImportOutcome = { ok: true; report: MergeReport } | { ok: false; message: string };
 
@@ -32,6 +36,12 @@ export interface AppDataValue {
   /** Reads the original app's cards and merges them into the current data. */
   importFromLegacy(): ImportOutcome;
   addCard(input: CardInput): WriteResult;
+  /**
+   * Adds several cards to one deck in a single write, creating the deck first
+   * when the target names a new one. A card the deck already holds is skipped
+   * (its entry in `cardIds` is null), so saving twice never duplicates.
+   */
+  addCards(target: SaveTarget, cards: readonly CardText[]): AddCardsOutcome;
   updateCard(id: string, input: CardInput): WriteResult;
   deleteCard(id: string): WriteResult;
   /** Adds a deck. The name is trimmed, and must be non-empty and not already in use. */

@@ -9,6 +9,7 @@ import {
 } from '../cloud/auth';
 import type { CloudServices } from '../cloud/supabaseServices';
 import type { CloudSetup } from '../ui/account/cloudSetup';
+import { FakeGeneration } from './fakeGeneration';
 import { FakeSyncServer } from './fakeSyncServer';
 
 /**
@@ -170,6 +171,7 @@ export class FakeAuth implements AuthClient {
 export interface FakeCloud {
   auth: FakeAuth;
   server: FakeSyncServer;
+  generation: FakeGeneration;
   services: CloudServices;
   setup: CloudSetup;
 }
@@ -177,6 +179,7 @@ export interface FakeCloud {
 export function fakeCloud(): FakeCloud {
   const auth = new FakeAuth();
   const server = new FakeSyncServer();
+  const generation = new FakeGeneration();
   const services: CloudServices = {
     config: {
       url: 'https://example.test',
@@ -185,6 +188,7 @@ export function fakeCloud(): FakeCloud {
     },
     auth,
     transport: server.transport(),
+    generation,
   };
-  return { auth, server, services, setup: { services, error: null } };
+  return { auth, server, generation, services, setup: { services, error: null } };
 }
