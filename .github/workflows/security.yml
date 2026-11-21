@@ -61,7 +61,26 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec # v5.0.1
+      # Dependency review needs the repository's dependency graph (Settings → Code security →
+      # Dependency graph). Until it is switched on, say so plainly instead of failing every pull
+      # request; once it is on, this check blocks as configured below.
+      - name: Check the dependency graph is enabled
+        id: graph
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if gh api "repos/$REPO/dependency-graph/compare/$BASE...$HEAD" > /dev/null 2>&1; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Dependency review skipped::The dependency graph is off for this repository. Enable it under Settings → Code security → Dependency graph (docs/SECURITY_PRODUCTION_CHECKLIST.md)."
+          fi
+
+      - if: steps.graph.outputs.available == 'true'
+        uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec # v5.0.1
         with:
           fail-on-severity: moderate
           # Licences that would conflict with publishing this MIT-licensed app.
