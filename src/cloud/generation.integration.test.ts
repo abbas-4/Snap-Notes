@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import type { GenerateRequest } from '../../supabase/functions/_shared/flashcards/contract.ts';
-import { accessToken, env, newAccount, rest } from '../test/integration';
+import { accessToken, env, newAccount, rest, sql } from '../test/integration';
 
 /**
  * AI generation against the real local stack: the allowance kept in Postgres,
@@ -31,6 +31,12 @@ async function callFunction(body: unknown, token: string | null) {
   });
   return { status: response.status, json: (await response.json()) as Record<string, unknown> };
 }
+
+// The project-wide cap counts every account's requests, including earlier runs
+// of this suite on the same local stack; start each run from an empty log.
+beforeAll(() => {
+  sql('delete from snapnotes_private.ai_generation_requests');
+});
 
 describe('the generation allowance', () => {
   it('refuses callers who are not signed in', async () => {

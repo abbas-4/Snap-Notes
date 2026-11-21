@@ -246,11 +246,23 @@ and its records are recognised by ID or content rather than duplicated.
   unknown email. Nothing logs card content or tokens.
 - **Account deletion requires a recent sign-in** (the server checks the JWT's `amr` timestamp is
   under ten minutes old), and the UI asks for the password again.
+- **Signed-out sessions are refused at once.** An access token stays validly signed until it
+  expires, so every API function also checks that the token's session still exists in
+  `auth.sessions`. After _Sign out_ (this browser) or _Sign out on every device_, a copied token
+  can no longer read, write or delete anything, even within its hour. Anonymous sessions, which
+  the app never uses, are refused too.
+- **Storage limits per account**: at most 250,000 rows (tombstones included) and 25 MiB of synced
+  text. Past either, `sync_push` rejects new or changed records one by one with a message, while
+  deletions are always accepted; everything stays on the device. The limits are in
+  `snapnotes_private.settings`. Changing a rejected record again retries it.
 
 The integration tests check each of these against the real database: cross-user reads return
 nothing, the same record ID in two accounts stays separate, injected user IDs are ignored, direct
 table writes return 403, unauthenticated and expired or tampered tokens are refused, and deletion
-removes exactly one account's rows.
+removes exactly one account's rows. `src/cloud/hardening.integration.test.ts` adds revoked and
+forged sessions, the storage limits, parallel requests against the AI limits, and a check of the
+whole schema's grants, Row Level Security and function settings. See
+[SECURITY_AUDIT.md](SECURITY_AUDIT.md).
 
 ## Account deletion
 

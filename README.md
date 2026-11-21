@@ -24,9 +24,10 @@ document into flashcards with AI, which you review and edit before saving.
 The original app is a single HTML file ([`legacy/index.html`](legacy/index.html)) that keeps
 cards in the browser's `localStorage`. It is being rebuilt as a typed, tested React application,
 one small milestone at a time. **The live site serves the rebuild** (Milestone 5 cutover), and
-moves each browser's existing cards over on its first visit. The original app is still published,
-unchanged, at [`/legacy/index.html`](https://abbas-4.github.io/Snap-Notes/legacy/index.html), and
-rolling back is a one-line change (see [Deployment](#deployment)).
+moves each browser's existing cards over on its first visit. The original app is still published
+at [`/legacy/index.html`](https://abbas-4.github.io/Snap-Notes/legacy/index.html), unchanged except
+for a security patch (see [Security](#security)), and rolling back is a one-line change (see
+[Deployment](#deployment)).
 
 | Milestone | Scope                                                                                | Status                                       |
 | --------- | ------------------------------------------------------------------------------------ | -------------------------------------------- |
@@ -96,7 +97,7 @@ To try the original app locally, open `legacy/index.html` in a browser.
 | `npm run typecheck`               | Type-check with `tsc`                                       |
 | `npm run check:functions`         | Type-check the Edge Function with Deno                      |
 | `npm run build`                   | Type-check and build into `dist/`                           |
-| `npm run verify:legacy`           | Confirm `legacy/index.html` is byte-for-byte the original   |
+| `npm run verify:legacy`           | Confirm `legacy/index.html` is the original (+ sec. patch)  |
 | `npm run verify:site -- <dir>`    | Check an assembled site (or `--url` for the live one)       |
 | `npm run test:integration`        | Run the sync and auth tests against the local Supabase      |
 | `npm run db:start` / `db:stop`    | Start / stop the local Supabase stack (Docker)              |
@@ -378,7 +379,7 @@ One value in that workflow, `PUBLISH`, decides what the site serves:
 
 | `PUBLISH` | Site root                              | `/legacy/index.html` |
 | --------- | -------------------------------------- | -------------------- |
-| `legacy`  | The original app, byte-for-byte        | Not published        |
+| `legacy`  | The original app (with security patch) | Not published        |
 | `app`     | The React build from `dist/` (current) | The original app     |
 
 Every run tests and builds the React app and checks that the build is deployable, whichever
@@ -404,3 +405,14 @@ backend first is described in
 ## License
 
 [MIT](LICENSE)
+
+## Security
+
+- [`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md): the November 2026 security audit, its
+  threat model, findings and fixes.
+- [`docs/SECURITY_PRODUCTION_CHECKLIST.md`](docs/SECURITY_PRODUCTION_CHECKLIST.md): what must be
+  set or verified on the hosted Supabase project, GitHub and the AI provider before accounts and
+  AI generation are switched on, and how to maintain the security checks.
+
+Please report a vulnerability privately through GitHub's _Report a vulnerability_ (Security tab)
+rather than in a public issue.

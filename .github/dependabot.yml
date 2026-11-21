@@ -1,0 +1,23 @@
+# Weekly pull requests for outdated npm packages and GitHub Actions (which are pinned to commit
+# SHAs, so they are updated only through these reviewed pull requests). Security updates are
+# raised as soon as an advisory is published, once "Dependabot security updates" is switched on
+# in the repository settings (docs/SECURITY_PRODUCTION_CHECKLIST.md).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      dev-tooling:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

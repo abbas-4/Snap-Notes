@@ -1,7 +1,12 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LIMITS, type GeneratedCard } from './contract.ts';
-import { createHandler, type HandlerDeps, type ReserveResult } from './handler.ts';
+import {
+  createHandler,
+  PROJECT_LIMIT_MESSAGE,
+  type HandlerDeps,
+  type ReserveResult,
+} from './handler.ts';
 import { ProviderError, type AiProvider, type ProviderRequest } from './provider.ts';
 
 const MATERIAL =
@@ -246,6 +251,7 @@ describe('authentication and allowance', () => {
   it('refuses when the account has used its allowance, with when to retry', async () => {
     deps.reserve = async () => ({
       allowed: false,
+      scope: 'account',
       retryAfterSeconds: 600,
       quota: { remainingHour: 0, remainingDay: 40 },
     });
@@ -253,6 +259,24 @@ describe('authentication and allowance', () => {
     expect(status).toBe(429);
     expect(headers.get('retry-after')).toBe('600');
     expect(body.error).toMatchObject({ code: 'rate-limited', retryAfterSeconds: 600 });
+    expect(provider.requests).toEqual([]);
+  });
+
+  it('says so when the whole project has reached its limit, without calling the provider', async () => {
+    deps.reserve = async () => ({
+      allowed: false,
+      scope: 'project',
+      retryAfterSeconds: 1200,
+      quota: { remainingHour: 15, remainingDay: 50 },
+    });
+    const { status, body, headers } = await call(generate());
+    expect(status).toBe(429);
+    expect(headers.get('retry-after')).toBe('1200');
+    expect(body.error).toEqual({
+      code: 'rate-limited',
+      message: PROJECT_LIMIT_MESSAGE,
+      retryAfterSeconds: 1200,
+    });
     expect(provider.requests).toEqual([]);
   });
 

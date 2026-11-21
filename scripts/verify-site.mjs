@@ -24,8 +24,8 @@ import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { parseArgs } from 'node:util';
 
-// SHA-256 of the original app, the same constant scripts/verify-legacy.mjs checks.
-const LEGACY_SHA256 = '899e4e3d5cab68348cb37a2b84767633c1ee70633310e8c1472b364f6b5043d6';
+// SHA-256 of the original app with its security patch, the same constant scripts/verify-legacy.mjs checks.
+const LEGACY_SHA256 = 'dc14fd5c704eb2c7d785bed49b15a77785ed07a520e84064dd1c5420130db8cd';
 
 // Vite's `base` in vite.config.ts; built assets are referenced as /Snap-Notes/assets/<name>.
 const BASE_PATH = '/Snap-Notes/';

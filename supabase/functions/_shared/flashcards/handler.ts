@@ -29,7 +29,14 @@ import { selectCards } from './quality.ts';
  */
 
 export type ReserveResult =
-  { allowed: true; quota: Quota } | { allowed: false; retryAfterSeconds: number; quota: Quota };
+  | { allowed: true; quota: Quota }
+  | {
+      allowed: false;
+      /** `account`: this user's allowance is used up. `project`: everyone's, together. */
+      scope: 'account' | 'project';
+      retryAfterSeconds: number;
+      quota: Quota;
+    };
 
 export interface HandlerDeps {
   /** Checks the caller's access token: their user ID, or null when it is not a valid session. */
@@ -59,6 +66,10 @@ const MESSAGES: Record<GenerationErrorCode, string> = {
   refused: 'The AI service declined to make cards from this material.',
   internal: 'Something went wrong on the server. Try again in a minute.',
 };
+
+/** When the whole project, not this account, has reached its generation limit. */
+export const PROJECT_LIMIT_MESSAGE =
+  'AI card generation is very busy and has paused for now. Try again later.';
 
 const STATUS: Record<GenerationErrorCode, number> = {
   unauthenticated: 401,
@@ -163,8 +174,11 @@ export function createHandler(deps: HandlerDeps): (request: Request) => Promise<
     const reserved = await deps.reserve(authorization);
     if (reserved === null) return fail('unauthenticated', origin);
     if (!reserved.allowed) {
-      deps.log({ event: 'generate', outcome: 'rate-limited' });
-      return fail('rate-limited', origin, { retryAfterSeconds: reserved.retryAfterSeconds });
+      deps.log({ event: 'generate', outcome: 'rate-limited', scope: reserved.scope });
+      return fail('rate-limited', origin, {
+        retryAfterSeconds: reserved.retryAfterSeconds,
+        ...(reserved.scope === 'project' ? { message: PROJECT_LIMIT_MESSAGE } : {}),
+      });
     }
 
     let reply;

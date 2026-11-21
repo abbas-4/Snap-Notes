@@ -30,7 +30,7 @@ interface PdfDocument {
 }
 
 export class PdfError extends Error {
-  readonly reason: 'encrypted' | 'corrupt' | 'too-many-pages';
+  readonly reason: 'encrypted' | 'corrupt' | 'too-many-pages' | 'too-slow';
 
   constructor(reason: PdfError['reason'], message: string) {
     super(message);
@@ -40,6 +40,12 @@ export class PdfError extends Error {
 }
 
 export const MAX_PDF_PAGES = 300;
+
+/**
+ * A crafted PDF can make PDF.js work for a very long time; reading stops after
+ * this long, so the page never waits on one forever.
+ */
+export const PDF_TIME_LIMIT_MS = 60_000;
 
 export function isPdf(bytes: Uint8Array): boolean {
   // `%PDF-`, which the format allows a little way into the file.
@@ -57,7 +63,30 @@ export async function extractPdfText(
   bytes: Uint8Array,
   pdfjs: PdfJs,
   maxChars: number,
+  timeLimitMs: number = PDF_TIME_LIMIT_MS,
 ): Promise<PdfText> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new PdfError('too-slow', 'The PDF took too long to read.')),
+      timeLimitMs,
+    );
+  });
+  try {
+    return await Promise.race([readPdf(bytes, pdfjs, maxChars, deadline), deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function readPdf(
+  bytes: Uint8Array,
+  pdfjs: PdfJs,
+  maxChars: number,
+  deadline: Promise<never>,
+): Promise<PdfText> {
+  // Keeps an unhandled rejection from being reported when reading wins the race.
+  deadline.catch(() => {});
   // PDF.js takes ownership of the buffer it is given, so it gets a copy.
   const task = pdfjs.getDocument({
     data: bytes.slice(),
@@ -71,9 +100,10 @@ export async function extractPdfText(
   });
   let doc: PdfDocument;
   try {
-    doc = await task.promise;
+    doc = await Promise.race([task.promise, deadline]);
   } catch (error) {
     await task.destroy().catch(() => {});
+    if (error instanceof PdfError) throw error;
     const name = (error as { name?: unknown } | null)?.name;
     if (name === 'PasswordException') {
       throw new PdfError('encrypted', 'The PDF is password protected.');
@@ -88,8 +118,8 @@ export async function extractPdfText(
     const pages: string[] = [];
     let length = 0;
     for (let n = 1; n <= doc.numPages; n += 1) {
-      const page = await doc.getPage(n);
-      const content = await page.getTextContent();
+      const page = await Promise.race([doc.getPage(n), deadline]);
+      const content = await Promise.race([page.getTextContent(), deadline]);
       page.cleanup();
       let text = '';
       for (const item of content.items) {

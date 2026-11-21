@@ -3,6 +3,7 @@ import { createDefaultDeck } from '../domain/appData';
 import {
   accessToken,
   browser,
+  claimsOf,
   env,
   mintToken,
   newAccount,
@@ -197,8 +198,10 @@ describe('account deletion', () => {
   it('requires a recent sign-in', async () => {
     const alice = await accountWithCard('stale');
     const hourAgo = Math.floor(Date.now() / 1000) - 3600;
+    // The same live session, as if its sign-in had been an hour ago.
     const stale = mintToken({
       sub: alice.userId,
+      session_id: claimsOf(accessToken(alice.services.storage)).session_id,
       amr: [{ method: 'password', timestamp: hourAgo }],
     });
     const response = await rest('rpc/delete_account', { method: 'POST', token: stale, body: {} });

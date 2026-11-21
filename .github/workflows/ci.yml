@@ -8,14 +8,24 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same branch or pull request replaces a run still in progress.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Third-party actions are pinned to full commit SHAs (the version is in the comment), so a
+# moved tag cannot change what runs here. Dependabot (.github/dependabot.yml) proposes updates.
 jobs:
   check:
     name: Lint, type-check, test, build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -26,8 +36,15 @@ jobs:
       - run: npm run typecheck
       # The Edge Function's entry point, type-checked by Deno itself.
       - run: npm run check:functions
+      # Includes the security regression tests that need no backend (legacy app escaping,
+      # Content Security Policy, Edge Function authentication and limits, document parsing).
       - run: npm test
       - run: npm run build
+
+      # The Content Security Policy is in place and nothing secret or development-only is in
+      # what would be published.
+      - name: Check the build for security regressions
+        run: node scripts/verify-build-security.mjs dist
 
       - name: Check the legacy app is unchanged
         run: npm run verify:legacy
@@ -35,10 +52,13 @@ jobs:
   integration:
     name: Integration tests against a local Supabase stack
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -50,9 +70,14 @@ jobs:
       - name: Start Supabase
         run: npm run db:start
 
-      # Accounts, password recovery, sync between two devices, conflicts, Row Level Security, and
-      # the AI generation allowance and Edge Function, all against the real services. Uses the
-      # stack's fixed local development keys only; no AI provider key is configured.
+      # Supabase's own database linter (the Security Advisor) on the migrated schema.
+      - name: Supabase Security Advisor
+        run: npx --yes supabase@2.122.0 db advisors --local --type security --level warn --fail-on warn
+
+      # Accounts, password recovery, sync between two devices, conflicts, Row Level Security,
+      # revoked sessions, storage limits, the AI generation allowance and Edge Function, all
+      # against the real services. Uses the stack's fixed local development keys only; no AI
+      # provider key is configured.
       - run: npm run test:integration
 
       - name: Stop Supabase

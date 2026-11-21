@@ -71,8 +71,23 @@ describe('reserving a request', () => {
     });
     expect(await createSupabaseAccess({ ...options, fetch }).reserve('Bearer t')).toEqual({
       allowed: false,
+      scope: 'account',
       retryAfterSeconds: 300,
       quota: { remainingHour: 0, remainingDay: 30 },
+    });
+  });
+
+  it('tells a project-wide refusal apart from an account one', async () => {
+    const { fetch } = server({
+      '/rest/v1/rpc/ai_generation_begin': {
+        status: 200,
+        body: { ...allowed, allowed: false, reason: 'project', retryAfterSeconds: 90 },
+      },
+    });
+    expect(await createSupabaseAccess({ ...options, fetch }).reserve('Bearer t')).toMatchObject({
+      allowed: false,
+      scope: 'project',
+      retryAfterSeconds: 90,
     });
   });
 
