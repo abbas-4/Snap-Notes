@@ -157,6 +157,7 @@ The reply tells the app how many cards were dropped and why, and the page says s
 | Topic                  | 120 characters                               | Server (and page) |
 | Request body           | 200 KB, checked while reading                | Server            |
 | Requests per account   | 20 per rolling hour, 60 per rolling 24 hours | Postgres          |
+| Requests, all accounts | 150 per rolling hour, 500 per rolling 24 h   | Postgres          |
 | Provider request       | 60 s, one automatic retry                    | Server            |
 | Waiting in the browser | 150 s                                        | Page              |
 
@@ -165,6 +166,16 @@ caller's own token: it cannot be raised from the browser, and a user calling it 
 up their own allowance. A status check, an invalid request, or a server with no provider
 configured never uses any. Each request's time (only) is kept for 24 hours, then deleted; rows
 are removed with the account. There is no billing or subscription.
+
+The project-wide limit (added by `20261120000000_security_hardening.sql`) exists because
+accounts are free to create: per-account limits alone do not bound what many accounts can spend
+together. When it is reached, everyone is told generation has paused for now, and no request
+reaches the provider. All four numbers live in `snapnotes_private.settings` and can be changed
+from the SQL editor without a migration, for example
+`update snapnotes_private.settings set value = 1000 where key = 'ai_project_per_day';`. Keep a
+spending limit on the provider account as well
+([checklist](SECURITY_PRODUCTION_CHECKLIST.md)): it is the only limit that holds even if the
+database ones are raised by mistake.
 
 ## Security and privacy
 

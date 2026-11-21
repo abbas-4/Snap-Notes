@@ -4,7 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Flashcards — Abbas</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <!-- Security patch (docs/SECURITY_AUDIT.md): this page shares its origin, and so its
+       localStorage, with the Snap Notes app. Nothing here needs the network, so the
+       policy below stops injected script from sending anything anywhere. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" integrity="sha384-HtMZLkYo+pR5/u7zCzXxMJP6QoNnQJt1qkHM0EaOPvGDIzaVZbmYr/TlvUZ/sKAg" crossorigin="anonymous">
   <style>
     /* small extra styles for card flip */
     .card-front, .card-back { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
@@ -96,12 +101,12 @@
           <div class="grid sm:grid-cols-2 gap-3">
             ${cards.slice().reverse().slice(0,6).map(c=>`
               <div class="p-4 border rounded-lg">
-                <div class="text-sm text-gray-500 mb-2">${c.id}</div>
+                <div class="text-sm text-gray-500 mb-2">${escapeHTML(String(c.id))}</div>
                 <div class="font-medium mb-1 truncate">${escapeHTML(c.term)}</div>
                 <div class="text-sm text-gray-500 mb-2 truncate">${escapeHTML(c.definition)}</div>
                 <div class="flex gap-2">
-                  <button class="px-2 py-1 border rounded" onclick="editCard('${c.id}')">Edit</button>
-                  <button class="px-2 py-1 border rounded" onclick="deleteCardConfirm('${c.id}')">Delete</button>
+                  <button class="px-2 py-1 border rounded" onclick="editCard(${jsArg(c.id)})">Edit</button>
+                  <button class="px-2 py-1 border rounded" onclick="deleteCardConfirm(${jsArg(c.id)})">Delete</button>
                 </div>
               </div>
             `).join('')}
@@ -125,14 +130,14 @@
             <div class="p-4 border rounded-lg">
               <div class="flex justify-between items-start gap-2">
                 <div>
-                  <div class="text-sm text-gray-500">${c.id}</div>
+                  <div class="text-sm text-gray-500">${escapeHTML(String(c.id))}</div>
                   <div class="font-medium">${escapeHTML(c.term)}</div>
                   <div class="text-sm text-gray-500 truncate">${escapeHTML(c.definition)}</div>
                 </div>
                 <div class="flex flex-col gap-2 text-right">
-                  <button class="px-2 py-1 border rounded" onclick="studySingle('${c.id}')">Study</button>
-                  <button class="px-2 py-1 border rounded" onclick="editCard('${c.id}')">Edit</button>
-                  <button class="px-2 py-1 border rounded" onclick="deleteCardConfirm('${c.id}')">Delete</button>
+                  <button class="px-2 py-1 border rounded" onclick="studySingle(${jsArg(c.id)})">Study</button>
+                  <button class="px-2 py-1 border rounded" onclick="editCard(${jsArg(c.id)})">Edit</button>
+                  <button class="px-2 py-1 border rounded" onclick="deleteCardConfirm(${jsArg(c.id)})">Delete</button>
                 </div>
               </div>
             </div>
@@ -196,7 +201,7 @@ function renderAdd(editId){
 
             ${edit ? `
               <button type="button"
-                onclick="duplicateCard('${edit.id}')"
+                onclick="duplicateCard(${jsArg(edit.id)})"
                 class="px-6 py-3 rounded-xl border font-semibold hover:bg-gray-50">
                 Duplicate
               </button>` : ""}
@@ -440,7 +445,7 @@ function renderLearn() {
         if (c.tries >= 2) c.mastered = true;
         feedback = `<div class="mt-4 p-3 bg-green-100 border rounded">Correct!</div>`;
       } else {
-        feedback = `<div class="mt-4 p-3 bg-red-100 border rounded">Wrong — ${c.definition}</div>`;
+        feedback = `<div class="mt-4 p-3 bg-red-100 border rounded">Wrong — ${escapeHTML(c.definition)}</div>`;
         c.tries = 0;
       }
 
@@ -581,8 +586,10 @@ function restartMatch() {
 }
 
     // Utilities
-    function escapeHTML(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-    function escapeAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
+    function escapeHTML(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+    function escapeAttr(s){ return escapeHTML(s); }
+    // A value as a JavaScript string literal, escaped for a double-quoted onclick attribute.
+    function jsArg(v){ return escapeHTML(JSON.stringify(String(v))); }
     function shuffle(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]] } return a }
 
     // Actions

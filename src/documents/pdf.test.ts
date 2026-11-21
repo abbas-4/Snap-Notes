@@ -52,4 +52,26 @@ describe('PDF text extraction', () => {
       message: expect.stringContaining(`${MAX_PDF_PAGES} pages`),
     });
   });
+
+  it('gives up on a PDF that takes too long to read, and releases it', async () => {
+    let destroyed = false;
+    const stuck: PdfJs = {
+      getDocument: () => ({
+        promise: Promise.resolve({
+          numPages: 1,
+          getPage: async () => ({
+            getTextContent: () => new Promise(() => {}),
+            cleanup: () => {},
+          }),
+        }),
+        destroy: async () => {
+          destroyed = true;
+        },
+      }),
+    };
+    await expect(extractPdfText(makePdf([['x']]), stuck, 1000, 50)).rejects.toMatchObject({
+      reason: 'too-slow',
+    });
+    expect(destroyed).toBe(true);
+  });
 });

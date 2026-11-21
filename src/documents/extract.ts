@@ -197,6 +197,9 @@ function describeFailure(error: unknown, format: DocumentFormat): string {
     if (error.reason === 'encrypted') {
       return 'This PDF is password protected. Remove the password, or copy the text in instead.';
     }
+    if (error.reason === 'too-slow') {
+      return 'This PDF took too long to read. Copy the text in instead, or try a simpler copy of the file.';
+    }
     if (error.reason === 'too-many-pages')
       return `${error.message} Split it, or paste the part you need.`;
     return 'This PDF is damaged or could not be read.';

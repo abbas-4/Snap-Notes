@@ -22,6 +22,8 @@ const userSchema = z.object({ id: z.string().min(1) });
 
 const reserveSchema = z.object({
   allowed: z.boolean(),
+  /** Which allowance refused the request; sent by the database since the security hardening migration. */
+  reason: z.enum(['account', 'project']).optional(),
   userId: z.string(),
   retryAfterSeconds: z.number().int().nonnegative(),
   remainingHour: z.number().int().nonnegative(),
@@ -64,11 +66,16 @@ export function createSupabaseAccess(options: SupabaseAccessOptions) {
       if (!response.ok) throw new Error(`database answered ${response.status}`);
       const parsed = reserveSchema.safeParse(await response.json());
       if (!parsed.success) throw new Error('database sent an unexpected reply');
-      const { allowed, retryAfterSeconds, remainingHour, remainingDay } = parsed.data;
+      const { allowed, reason, retryAfterSeconds, remainingHour, remainingDay } = parsed.data;
       const quota = { remainingHour, remainingDay };
       return allowed
         ? { allowed: true, quota }
-        : { allowed: false, retryAfterSeconds: Math.max(1, retryAfterSeconds), quota };
+        : {
+            allowed: false,
+            scope: reason ?? 'account',
+            retryAfterSeconds: Math.max(1, retryAfterSeconds),
+            quota,
+          };
     },
   };
 }

@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { createHmac, randomUUID } from 'node:crypto';
 import type { CloudConfig } from '../cloud/config';
 import { createSupabaseServices, type CloudServices } from '../cloud/supabaseServices';
@@ -142,4 +143,39 @@ export async function followEmailLink(email: string): Promise<URL> {
   const location = response.headers.get('location');
   if (!location) throw new Error(`the link did not redirect (${response.status})`);
   return new URL(location);
+}
+
+/** The claims of an access token, decoded without checking it (tests read their own tokens). */
+export function claimsOf(token: string): Record<string, unknown> {
+  const payload = token.split('.')[1] ?? '';
+  return JSON.parse(Buffer.from(payload, 'base64url').toString()) as Record<string, unknown>;
+}
+
+/**
+ * Runs SQL as the database owner on the *local* stack, for test setup the API
+ * deliberately cannot do (changing a limit, clearing the AI request log). Uses
+ * the Supabase CLI, so it needs no database driver and never sees a password.
+ */
+export function sql(query: string): Array<Record<string, unknown>> {
+  if (!/^http:\/\/(127\.0\.0\.1|localhost):/.test(env.url)) {
+    throw new Error(`Refusing to run SQL against ${env.url}: only the local stack.`);
+  }
+  const result = spawnSync(
+    'npx',
+    ['--yes', 'supabase@2.122.0', 'db', 'query', '--local', '--output-format', 'json', query],
+    { encoding: 'utf8' },
+  );
+  if (result.status !== 0) throw new Error(`SQL failed: ${result.stderr || result.stdout}`);
+  // Statements without rows (DELETE, UPDATE) print a command tag such as "DELETE 3", not JSON.
+  if (!result.stdout.trimStart().startsWith('{')) return [];
+  return (JSON.parse(result.stdout) as { rows?: Array<Record<string, unknown>> }).rows ?? [];
+}
+
+/** Sets one of the limits in snapnotes_private.settings, returning the previous value. */
+export function setLimit(key: string, value: number): number {
+  if (!/^[a-z_]+$/.test(key) || !Number.isInteger(value)) throw new Error('bad limit');
+  const [row] = sql(`select value from snapnotes_private.settings where key = '${key}'`);
+  if (!row) throw new Error(`no setting ${key}`);
+  sql(`update snapnotes_private.settings set value = ${value} where key = '${key}'`);
+  return Number(row.value);
 }
