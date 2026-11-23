@@ -162,13 +162,14 @@ export function sql(query: string): Array<Record<string, unknown>> {
   }
   const result = spawnSync(
     'npx',
-    ['--yes', 'supabase@2.122.0', 'db', 'query', '--local', '--output-format', 'json', query],
+    // `--agent no`: when the CLI detects an AI agent it wraps rows in another JSON shape.
+    ['--yes', 'supabase@2.122.0', 'db', 'query', '--local', '--agent', 'no', '-o', 'json', query],
     { encoding: 'utf8' },
   );
   if (result.status !== 0) throw new Error(`SQL failed: ${result.stderr || result.stdout}`);
   // Statements without rows (DELETE, UPDATE) print a command tag such as "DELETE 3", not JSON.
-  if (!result.stdout.trimStart().startsWith('{')) return [];
-  return (JSON.parse(result.stdout) as { rows?: Array<Record<string, unknown>> }).rows ?? [];
+  if (!result.stdout.trimStart().startsWith('[')) return [];
+  return JSON.parse(result.stdout) as Array<Record<string, unknown>>;
 }
 
 /** Sets one of the limits in snapnotes_private.settings, returning the previous value. */
